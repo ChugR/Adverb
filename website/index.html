@@ -1,0 +1,52 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Adverb - AMQP 1.0 Wire protocol traces</title>
+<style type="text/css">
+<!--
+body {
+	color:#000000;
+	background-color:#B3B3B3;
+	margin:0;
+}
+
+#container {
+	margin-left:auto;
+	margin-right:auto;
+	text-align:center;
+	}
+
+a img {
+	border:none;
+}
+
+-->
+</style>
+</head>
+<body>
+<h1>Project Adverb - AMQP 1.0 Wireshark Traces</h1>
+<table class="reference notranslate" border="1">
+ <tr>
+	<th>Command</th>
+	<th>Wireshark Trace</th>
+ </tr>
+ <tr>
+	<td>Qpid Messaging C++<br><br>&nbsp;&nbsp;<strong>./hello_world localhost:5672 amq.topic "{protocol:amqp1.0}"</strong></td>
+	<td><a href="adverb-02-hello-world-to-qpidd.html">Hello World</td>
+ </tr>
+ <tr>
+	<td>Qpid Messaging C++<br><br>&nbsp;&nbsp;<strong>./drain --connection-options "{protocol:amqp1.0}" "chuck; {create:always}"</strong></td>
+	<td><a href="adverb-01-drain-creates-queue-in-qpidd.html">Drain creates a queue</td>
+ </tr>
+ <tr>
+	<td>Qpid Messaging C++<br><br>&nbsp;&nbsp;&nbsp;&nbsp;Qpidd running on port 5672<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;qpid-config add queue chuck<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;qpid-config bind amq.topic chuck chuck<br>
+<br>
+&nbsp;&nbsp;Start wireshark (to create Unbind trace)<br>
+<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<strong>qpid-config unbind amq.topic chuck chuck</strong></td>
+	<td><a href="unbind-0-10.html">Unbind in AMQP 0-10</td>
+ </tr>
+</table>
+</body></html>

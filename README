@@ -1,0 +1,58 @@
+Adverb - a project to distill Wireshark trace data into web pages
+that expose the AMQP on-the-wire protocol.
+
+OVERVIEW
+========
+
+Real AMQP 1.0 is complicated even in simple interactions.
+Hand waving in front of the AMQP 1.0 specification leaves beginners
+lost. Presenting simple interactions with selectable levels of
+detail is hard. Even with Pavel Moravec's AMQP 1.0 Wireshark 
+dissector it's hard to use Wireshark to study the protocol in
+detail.
+
+This project tries to show complete AMPQ transaction scenarios
+like "Hello World" in complete detail without being overwhelming.
+
+A Wireshark trace is converted into a web page where there is
+one line for each AMQP frame on the wire. The line shows the
+frame direction (to or from a broker on port 5672) and the
+AMQP performatives or methods in that frame. When the frame
+is expanded by clicking on the arrow on the left, a new level
+of detail is exposed showing: the TCP header; each AMQP item.
+These may be expanded in turn showing the complete protocol
+detail.
+
+You may go from the triggering command line down to every bit
+in every AMQP frame emitted by the messaging libraries and
+broker. How things are done and in what order is exposed and
+will help you learn AMQP.
+
+PROJECT ADVERB
+==============
+
+The project flow is (supposed to be):
+  1. Figure out a scenario to trace. Pick a name for it.
+     "ABC" for example.
+  2. Put a simple explanation of the scenario into
+      ./pcapng-generators/ABC.txt
+  3. Run the scenario and capture the trace using a Wireshark that
+     has Pavel Moravec's AMQP 1.0 dissector. Save the trace in
+      ./pcapng-raw-traces/ABC.pcapng
+  4. Export the raw trace as PDML and save in
+      ./pdml/ABC.pdml
+  5. Run a script that converts the .pdml files into web pages
+      xsltproc ./scripts/adverb.xls ./pdml/ABC.pdml > ./website/ABC.html
+  6. Run a script that combines all the scenario data and creates
+     a nice ./website/index.html that has links the the processed
+     trace web pages.
+
+Currently step 4 must be done manually and step 6 does not exist.
+An example of the expected results is in ./website.
+
+When this project is complete users should be able to capture
+their own traces and render them into a ./website for study, 
+debugging, or sharing.
+
+Enjoy,
+Chuck
