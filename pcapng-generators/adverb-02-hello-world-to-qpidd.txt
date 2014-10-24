@@ -1,5 +1,0 @@
-Qpid broker on port 5672
-
-Qpid Messaging C++
-
-    ./hello_world localhost:5672 amq.topic "{protocol:amqp1.0}"

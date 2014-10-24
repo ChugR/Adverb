@@ -1,8 +1,0 @@
-Qpidd running on port 5672
-  * Previously executed
-    qpid-config add queue chuck
-    qpid-config bind amq.topic chuck chuck
-
-Start wireshark
-
-    qpid-config unbind amq.topic chuck chuck

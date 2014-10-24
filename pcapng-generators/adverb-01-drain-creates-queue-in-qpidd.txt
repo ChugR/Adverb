@@ -1,5 +1,0 @@
-Qpidd running on port 5672
-
-Qpid Messaging C++
-
-    ./drain --connection-options "{protocol:amqp1.0}" "chuck; {create:always}"
