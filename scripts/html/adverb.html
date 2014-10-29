@@ -46,36 +46,5 @@ Tips:
 </ul></li>
 <li>Unprotect the file so that it may be uploaded.<br><b>sudo chmod 777 /tmp/your-file.pcapng</b></li>
 </ul>
-<h3>Decode Legend</h3>
-The decode web page default view shows information about the capture, a view of all the connections with the number frames associated with that connection, and a summary of every AMQP frame. The summary includes:
-<ul>
-<li>The capture file frame number</li>
-<li>The TCP/IP source and destination addresses of the hosts with an arrow indicating the direction of the frame.<br>
-The AMQP port (either 5672, or one of the decode-as ports) is always on the right</li>
-<li>The AMQP 1.0 performative(s) and important details:
-<ul>
-<li><strong>open</strong> [0] always channel 0</li>
-<li><strong>close</strong> [0] always channel 0</li>
-<li><strong>begin</strong> [channel,remoteChannel]</li>
-<li><strong>end</strong> [channel]</li>
-<li><strong>attach</strong> [channel,handle] (role src -> tgt)</li>
-<li><strong>detach</strong> [channel, handle]</li>
-<li><strong>flow</strong> [channel,handle](deliveryCount, linkCredit)</li>
-<li><strong>transfer</strong> [channel,handle] (id)|(id..id)</li>
-<li><strong>disposition</strong> [channel] (role first-last) </li>
-</ul>
-<li>AMQP version-independent <strong>init</strong> details
-<li>AMQP 0.x <strong>method(s)</strong>
-</ul>
-Every protocol frame may be expanded two ways:
-<ul>
-<li>The single lozenge expands to show each performative on a separate line</li>
-<li>The double lozenge expands each performative in the frame to expose the full details and every AMQP bit that went over the wire.</li>
-</ul>
-<h3>Notes on searching</h3>
-You may use your browser's Ctrl-F search feature to search for text on the screen. However, this search does not find any of the hidden text. You may use the <strong>Expand-all page view</strong> Page control to expand all the details in every frame. Then use the Ctrl-F to search for text anywhere in the details of each frame.
-<h3>Future Work</h3>
-There's plenty more information that could be hoisted into the summaries. Let me know what you need. <br>
-<a href="mailto:crolke@redhat.com?Subject=Adverb%20futures">Chuck Rolke</a>
 </body>
 </html>
