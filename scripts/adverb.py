@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 2.3
+# Version 2.4
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -94,8 +94,14 @@ def amqp_port_int():
 def nbsp():
     return "&#160;"
 
+def shaded_background_begin():
+    return "<span style=\"background-color:#e0e0e0\">"
+
+def shaded_background_end():
+    return "</span>"
+
 def l_arrow():
-    return "<span style=\"background-color:#e5e5e5\"><-</span>"
+    return "<-"
 
 def r_arrow():
     return "->"
@@ -253,7 +259,7 @@ def connection_dst_is_broker(packet):
     
 #
 #
-def connection_show_util(packet, sep_broker_r, sep_broker_l):
+def connection_show_util(packet, sep_broker_r, sep_broker_l, bg_start="", bg_end=""):
     """Given a packet, return the connection to be displayed/stored"""
     assert packet is not None, "connection_show_util receives null packet"
     proto_tcp = packet.find("./proto[@name='tcp']")
@@ -283,9 +289,9 @@ def connection_show_util(packet, sep_broker_r, sep_broker_l):
 
     result = ""
     if is_broker_a(d_port, s_port, global_broker_ports_list):
-        result = "%s%s%s" % (src_addr, sep_broker_r, dst_addr)
+        result = "%s%s%s%s%s" % (bg_start, src_addr, sep_broker_r, bg_end, dst_addr)
     else:
-        result = "%s%s%s" % (dst_addr, sep_broker_l, src_addr)
+        result = "%s%s%s%s%s" % (dst_addr, bg_start, sep_broker_l, src_addr, bg_end)
 
     return result
 
@@ -294,7 +300,7 @@ def connection_show_util(packet, sep_broker_r, sep_broker_l):
 #
 def connection_name_for_web(packet):
     """Given a packet, return the display connection name client-broker for html"""
-    return connection_show_util(packet, r_arrow_str(), l_arrow_str())
+    return connection_show_util(packet, r_arrow_str(), l_arrow_str(), shaded_background_begin(), shaded_background_end())
 
 #
 #
@@ -690,10 +696,11 @@ def main_except(argv):
                 proto_index += 1
 
     # start up the web stuff
-    print '''<html>
-<head>
-<title>Project Adverb - Analyzing AMQP Network Traffic</title>
-<script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script>
+    print "<html>"
+    print "<head>"
+    print "<title>%s - Adverb Analysis</title>" % arg_display_name
+    print '''<script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script>
+<!-- <script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script> -->
 <script type="text/javascript">
 function node_is_visible(node)
 {
@@ -947,11 +954,11 @@ User notes: <b>'''
         # this lozenge shows/hides frame contents
         print "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (f_idc, lozenge(), nbsp())
         # dobule lozenge shows all frame details
-        print "<a href=\"javascript:toggle_frame_details_%s()\">%s%s</a>" % (f_id, double_lozenge(), nbsp())
+        print "<a href=\"javascript:toggle_frame_details_%s()\">%s%s</a>%s%s" % (f_id, double_lozenge(), nbsp(), frame_time_relative(packet), nbsp())
         print "<font color=\"%s\">" % conn_id_to_color_map[ connection_id(packet) ]
         print "Frame %s" % frame_num(packet)
         print "%s%s" % (nbsp(), connection_name_for_web(packet))
-        print "</font>%s%s%s%s" % (nbsp(), frame_time_relative(packet), nbsp(), performatives)
+        print "</font>%s%s" % (nbsp(), performatives)
 
         # Create a div that holds the frame's contents
         print "<div width=\"100%%\" id=\"%s\" style=\"display:none\">" % f_idc # begin level:2
