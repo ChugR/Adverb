@@ -154,6 +154,16 @@ def colorize_bg(pattern):
     return "<span style=\"background-color:%s\">%s</span>" % (pattern_bg_color_map[pattern], pattern)
 
 #
+# colorize a directive with an error indication
+def colorize_performative_error(proto, res):
+    args        = proto.find("./field[@name='amqp.method.arguments']")
+    error       = args.find("./field[@name='amqp.performative.arguments.error']")
+    if not error is None:
+        e_size      = error.get("size")
+        if int(e_size) > 1:
+            res.name = "<span style=\"background-color:yellow\">" + res.name + "</span>"
+
+#
 #
 global_broker_ports_list = []
 
@@ -534,19 +544,22 @@ def amqp_decode(proto):
         handle      = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
         res.handle         = extract_name(handle)
         res.name           = "detach"
+        colorize_performative_error(proto, res)
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
-        res.web_show_str   = "<strong>%s</strong> [%s,%s]" % (res.name, res.channel, res.handle)
+        res.web_show_str   = "<strong>%s</strong> %s" % (res.name, colorize_bg(res.channel_handle))
     
     elif perf == '17':
         # Performative: end [channel] 
         res.channel      = proto.find("./field[@name='amqp.channel']").get("show")
         res.name         = "end"
+        colorize_performative_error(proto, res)
         res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
 
     elif perf == '18':
         # Performative: close [0] always channel 0
         res.channel      = "0"
         res.name         = "close"
+        colorize_performative_error(proto, res)
         res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
 
     else:
