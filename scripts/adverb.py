@@ -299,9 +299,9 @@ def connection_show_util(packet, sep_broker_r, sep_broker_l, bg_start="", bg_end
 
     result = ""
     if is_broker_a(d_port, s_port, global_broker_ports_list):
-        result = "%s%s%s%s%s" % (bg_start, src_addr, sep_broker_r, bg_end, dst_addr)
+        result = "%s%s%s%s%s%s" % (bg_start, src_addr, sep_broker_r, bg_end, dst_addr, sep_broker_r)
     else:
-        result = "%s%s%s%s%s" % (dst_addr, bg_start, sep_broker_l, src_addr, bg_end)
+        result = "%s%s%s%s%s%s" % (dst_addr, bg_start, sep_broker_l, src_addr, bg_end, sep_broker_l)
 
     return result
 
