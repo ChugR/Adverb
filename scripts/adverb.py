@@ -572,11 +572,20 @@ def amqp_decode(proto):
 def show_fields(parent, level):
     '''Print indented fields values and child values'''
     for child in parent:
+        childname = child.get("name")
         showname = child.get("showname")
+        valuetext = child.get("value")
+        # python2
+        showascii = ""
+        if (childname == "amqp.data" or childname == "amqp.amqp_value"):
+            try:
+                showascii = " [" + valuetext.decode("hex") + "]"
+            except:
+                pass
         if showname is not None and len(showname) > 0:
-            print "%s%s<br>" % (leading(level), showname)
+            print "%s%s<br>" % (leading(level), showname + showascii)
         else:
-            print "%s%s<br>" % (leading(level), child.get("show"))
+            print "%s%s<br>" % (leading(level), showtext + showascii)
         show_fields(child, level+1)
 
 #
