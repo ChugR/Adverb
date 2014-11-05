@@ -468,27 +468,33 @@ def amqp_decode(proto):
         res.web_show_str   = "<strong>%s</strong> %s" % (res.name, res.channel_remote)
         
     elif perf == '12':
-        # Performative:  attach [channel,handle] (role src -> tgt) 
+        # Performative:  attach [channel,handle] role "name" (source: src, target: tgt) 
         res.channel = proto.find("./field[@name='amqp.channel']").get("show")
         args        = proto.find("./field[@name='amqp.method.arguments']")
         handle      = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
         role        = args.find("./field[@name='amqp.performative.arguments.role']").get("showname")
+        tmpname     = args.find("./field[@name='amqp.performative.arguments.name']")
         tmpsrc      = args.find("./field[@name='amqp.performative.arguments.source']")
         tmptgt      = args.find("./field[@name='amqp.performative.arguments.target']")
+        name        = None
         src         = None
         tgt         = None
         if tmpsrc is not None:
             src       = tmpsrc.find("./field[@name='amqp.performative.arguments.address']")
         if tmptgt is not None:
             tgt       = tmptgt.find("./field[@name='amqp.performative.arguments.address']")
+        if tmpname is not None:
+            name = extract_name(tmpname.get("showname"))
+        else:
+            name = ""
         res.name           = "attach"
         res.handle         = extract_name(handle)
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
         res.role           = extract_name(role)
         res.source         = field_show_value_or_null(src)
         res.target         = field_show_value_or_null(tgt)
-        res.web_show_str   = ("<strong>%s</strong> %s %s (%s %s %s)" %
-                              (res.name, colorize_bg(res.channel_handle), res.role, res.source, r_arrow_str(), res.target))
+        res.web_show_str   = ("<strong>%s</strong> %s %s \"%s\" (source: %s, target: %s)" %
+                              (res.name, colorize_bg(res.channel_handle), res.role, name, res.source, res.target))
 
     elif perf == '13':
         # Performative: flow [channel,handle] 
@@ -579,7 +585,7 @@ def show_fields(parent, level):
         showascii = ""
         if (childname == "amqp.data" or childname == "amqp.amqp_value"):
             try:
-                showascii = " [" + valuetext.decode("hex") + "]"
+                showascii = " <span style=\"background-color:white\">\'" + valuetext.decode("hex") + "\'</span>"
             except:
                 pass
         if showname is not None and len(showname) > 0:
@@ -1013,7 +1019,7 @@ The decode web page default view shows information about the capture, a view of 
 <ul>
 <li>The capture file frame number. Note that not all frames from the capture file are AMQP frames and that there are normally gaps in the frame number sequence.</li>
 <li>The TCP/IP source and destination addresses of the hosts with an arrow indicating the direction of the frame. The frames from the broker to the client have the direction arrow highlighted with a light gray background.<br>
-The AMQP port (either 5672, or one of the decode-as ports) is always on the right</li>
+The AMQP 'server' port (either 5672, or one of the decode-as ports) is always on the right</li>
 <li>The frame timestamp in seconds relative to the beginning of the capture</li>
 <li>The AMQP 1.0 performative(s) and important details:
 <ul>
@@ -1021,7 +1027,7 @@ The AMQP port (either 5672, or one of the decode-as ports) is always on the righ
 <li><strong>close</strong> [0] always channel 0</li>
 <li><strong>begin</strong> [channel,remoteChannel]</li>
 <li><strong>end</strong> [channel]</li>
-<li><strong>attach</strong> [channel,handle] (role src -> tgt)</li>
+<li><strong>attach</strong> [channel,handle] role "name" (source: src, target: tgt)</li>
 <li><strong>detach</strong> [channel, handle]</li>
 <li><strong>flow</strong> [channel,handle](deliveryCount, linkCredit)</li>
 <li><strong>transfer</strong> [channel,handle] (id)|(id..id)</li>
@@ -1030,12 +1036,17 @@ The AMQP port (either 5672, or one of the decode-as ports) is always on the righ
 <li>AMQP version-independent <strong>init</strong> details
 <li>AMQP 0.x <strong>method(s)</strong>
 </ul>
-Every protocol frame may be expanded two ways:
+<h3>Protocol frame expansion</h3>
 <ul>
 <li>The single lozenge expands to show each performative on a separate line</li>
-<li>The double lozenge expands each performative in the frame to expose the full details and every AMQP bit that went over the wire.</li>
+<li>The double lozenge expands each performative in the frame to expose the full details of the decoded Wireshark trace.</li>
 </ul>
-Note that the <strong>[channel,handle]</strong> fields are highlighted with background colors to make protocol exchanges easier to see.
+<h3>Notes</h3>
+<ul>
+<li>Close, End, or Detach performatives that indicate errors are highlighted in yellow.</li>
+<li>Note that the <strong>[channel,handle]</strong> fields are highlighted with background colors to make protocol exchanges easier to see.</li>
+<li>Wireshark generally displays hex data for AMQP message payloads. Adverb attempts to show transfer frame AMQP-value fields readable ascii.</li>
+</ul>
 <h3>Notes on searching</h3>
 You may use your browser's Ctrl-F search feature to search for text on the screen. However, this search does not find any of the hidden text. You may use the <strong>Expand-all page view</strong> Page control to expand all the details in every frame. Then use the Ctrl-F to search for text anywhere in the details of each frame.
 </div>
