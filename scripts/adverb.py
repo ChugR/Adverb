@@ -927,6 +927,19 @@ User notes: <b>'''
         f_id = frame_id(packet) # f123
         f_idc = f_id + "c"      # f123c - frame's contents
 
+        # Flag tcp retransmits
+        tcp_message = ""
+        try:
+            tcp_proto = packet.find("./proto[@name='tcp']")
+            tcp_analysis = tcp_proto.find("./field[@name='tcp.analysis']")
+            tcp_a_flags = tcp_analysis.find("./field[@name='tcp.analysis.flags']")
+            ws_expert = tcp_a_flags.find("./field[@name='_ws.expert']")
+            expert_text = ws_expert.get("showname")
+            if "(suspected) retransmission" in expert_text:
+                tcp_message = "<span style=\"background-color:orange\">Suspected TCP retransmission</span>"
+        except:
+            pass
+
         # compute performative list for Frame line
         # collapse consecutive transfers into a transfer range for display
         transfer_first = None
@@ -986,7 +999,7 @@ User notes: <b>'''
         print "<font color=\"%s\">" % conn_id_to_color_map[ connection_id(packet) ]
         print "Frame %s" % frame_num(packet)
         print "%s%s" % (nbsp(), connection_name_for_web(packet))
-        print "</font>%s%s" % (nbsp(), performatives)
+        print "</font>%s%s %s" % (nbsp(), performatives, tcp_message)
 
         # Create a div that holds the frame's contents
         print "<div width=\"100%%\" id=\"%s\" style=\"display:none\">" % f_idc # begin level:2
