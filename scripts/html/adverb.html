@@ -1,25 +1,35 @@
 <html>
 <head>
-<title>Project Adverb - Decode an AMQP Wireshark Trace (v2.3)</title>
+<title>Project Adverb - Decode an AMQP Wireshark Trace (v3.0)</title>
 </head>
 <body>
 <h1>Submission Form</h1>
-<form method='POST' enctype='multipart/form-data' action='/cgi-bin/adverb.sh'>
+<form method='POST' enctype='multipart/form-data' action='/cgi-bin/adverb-cgi.py'>
 <ul>
-<li>Select the .pcapng file to upload<br>
-<input type=file name=upfile></li>
-<li>Additional ports to be decoded as AMQP.<br>
-Space separated list of ports or port ranges; the <em>selectors</em> as specified in 
-<a href="https://www.wireshark.org/docs/man-pages/tshark.html">tshark -d option</a> <br>
-Examples: "8888" "20000:10 10000-10019" "10000 10010 10020"<br>
-<input type=text name=selectors></li>
-<li>Notes about the file: <br>
-<input type=text name=note></li>
-<li>Press Upload to view decoded AMQP streams<br>
-<input type=submit value=Upload></li>
+<li>Select .pcapng trace file:&nbsp;<input type=file name=upfile></li>
+<li>Decode as AMQP ports:&nbsp;     <input type=text name=selectors></li>
+<li><input type=checkbox name=searchhard value="off">&nbsp;Search entire trace file for AMQP traffic</li>
+<li><input type=checkbox name=showpdml   value="off">&nbsp;Display intermediate PDML</li>
+<li><input type=submit value=Upload></li>
 </ul>
 </form>
 <hr>
+<h3>Form input fields</h3>
+<ul>
+<li>.pcapng file<br>This is the trace file to upload, process, and display.</li>
+<li>Decode-as AMQP ports<br>Normally only port 5672 is decoded as AMQP.<br>
+To decode more ports as AMQP enter a space-separated list of ports or port ranges, the <em>selectors</em>, as specified in 
+<a href="https://www.wireshark.org/docs/man-pages/tshark.html">tshark -d option</a> <br>
+Examples: "8888" "20000:10 10000-10019" "10000 10010 10020"</li>
+<li>Search for AMQP traffic.<br>
+Process captured frames not to/from port 5672 to look for possible AMQP traffic. 
+Often traffic goes to brokers at random ports. Check this option to look for
+AMQP frames. Checking this option may cause large numbers of traced frames to be
+processed and produce a huge PDML intermediate file. This may take a long time.</li>
+<li>Display intermediate PDML<br>
+Show the wireshark .pdml intermediate file instead of the normal Adverb analysis display.<br>
+Use this option for debugging.</li>
+</ul>
 <h3>Introduction</h3>
 Wireshark can capture network traffic traces and decode the various protocol's details.
 Development versions of Wireshark include Pavel Moravec's AMQP 1.0 decoder. However, for one reason or another Qpid developers and other users often can't use the version of Wireshark that has the AMQP decoder support that they need. <br><br>
