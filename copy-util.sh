@@ -2,22 +2,22 @@
 
 function diffFunc {
     set -x
-    diff -s ./scripts/html/adverb.html  /var/www/html/adverb.html
-    diff -s ./scripts/cgi-bin/adverb.sh /var/www/cgi-bin/adverb.sh
-    diff -s ./scripts/adverb.py         /var/www/cgi-bin/adverb/scripts/adverb.py
+    diff -s ./scripts/html/adverb.html      /var/www/html/adverb.html
+    diff -s ./scripts/cgi-bin/adverb-cgi.py /var/www/cgi-bin/adverb-cgi.py
+    diff -s ./scripts/adverb.py             /var/www/cgi-bin/adverb/scripts/adverb.py
 }
 
 function putFunc {
     set -x
-    cp -i ./scripts/html/adverb.html  /var/www/html/adverb.html
-    cp -i ./scripts/cgi-bin/adverb.sh /var/www/cgi-bin/adverb.sh
-    cp -i ./scripts/adverb.py         /var/www/cgi-bin/adverb/scripts/adverb.py
+    cp -i ./scripts/html/adverb.html      /var/www/html/adverb.html
+    cp -i ./scripts/cgi-bin/adverb-cgi.py /var/www/cgi-bin/adverb-cgi.py
+    cp -i ./scripts/adverb.py             /var/www/cgi-bin/adverb/scripts/adverb.py
 }
 
 function getFunc {
     set -x
     cp -i /var/www/html/adverb.html                  ./scripts/html/adverb.html
-    cp -i /var/www/cgi-bin/adverb.sh                 ./scripts/cgi-bin/adverb.sh
+    cp -i /var/www/cgi-bin/adverb-cgi.py             ./scripts/cgi-bin/adverb-cgi.py
     cp -i /var/www/cgi-bin/adverb/scripts/adverb.py  ./scripts/adverb.py
 }
 

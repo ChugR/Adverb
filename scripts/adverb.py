@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 2.4
+# Version 3.0
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -618,7 +618,6 @@ def main_except(argv):
     arg_pdml_file    = sys.argv[1]
     arg_display_name = sys.argv[2]
     arg_broker_ports = sys.argv[3]
-    arg_user_note    = sys.argv[4]
 
     #for x in range (0, 5):
     #    print "arg %s: %s<br>" % (x, sys.argv[x])
@@ -886,9 +885,7 @@ Capture Filename: <b>'''
     print '''</b><br>
 Generated from PDML on <b>'''
     print time.asctime( time.localtime(time.time()) ),
-    print '''</b><br>
-User notes: <b>'''
-    print "%s</b><br>" % arg_user_note
+    print "</b><br>"
     print "User ports decoded as AMQP (in addition to 5672): <b>%s</b><br>" % arg_broker_ports
 
     # probable/possible AMQP connections
