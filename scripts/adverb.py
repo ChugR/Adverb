@@ -214,6 +214,42 @@ class PerformativeInfo():
                 (self.name, colorize_bg(self.channel_handle), self.transfer_id, transfer_last.transfer_id))
 
 #
+# Name shortener.
+# The short name for display is "name_" + index(longName)
+# Embellish the display name with an html popup
+# Link and endpoint names are tracked separately
+# 
+class ShortNames():
+    def __init__(self, prefixText):
+        self.longnames = []
+        self.prefix = prefixText
+        self.threshold = 25
+
+    def translate(self, lname):
+        # add all names, even if not translated
+        idx = 0
+        try:
+            idx = self.longnames.index(lname)
+        except:
+            self.longnames.append(lname)
+            idx = self.longnames.index(lname)
+        # return as-given if short enough
+        if len(lname) < self.threshold:
+            return lname
+        return "<span title=\"" + lname + "\">" + self.prefix + "_" + str(idx) + "</span>"
+
+    def htmlDump(self):
+        if len(self.longnames) > 0:
+            print "<h3>" + self.prefix + " Name Index</h3>"
+            print "<ul>"
+            for i in range(0, len(self.longnames)):
+                print ("<li> " + self.prefix + "_" + str(i) + " - " + self.longnames[i] + "</li>")
+            print "</ul>"
+
+short_link_names = ShortNames("link")
+short_endp_names = ShortNames("endpoint")
+
+#
 #
 def process_port_args(ostring, res_list):
     """Given the string of broker ports, return an expanded list"""
@@ -468,7 +504,7 @@ def amqp_decode(proto):
         res.web_show_str   = "<strong>%s</strong> %s" % (res.name, res.channel_remote)
         
     elif perf == '12':
-        # Performative:  attach [channel,handle] role "name" (source: src, target: tgt) 
+        # Performative:  attach [channel,handle] role name (source: src, target: tgt) 
         res.channel = proto.find("./field[@name='amqp.channel']").get("show")
         args        = proto.find("./field[@name='amqp.method.arguments']")
         handle      = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
@@ -493,7 +529,10 @@ def amqp_decode(proto):
         res.role           = extract_name(role)
         res.source         = field_show_value_or_null(src)
         res.target         = field_show_value_or_null(tgt)
-        res.web_show_str   = ("<strong>%s</strong> %s %s \"%s\" (source: %s, target: %s)" %
+        name               = short_link_names.translate(name)
+        res.source         = short_endp_names.translate(res.source)
+        res.target         = short_endp_names.translate(res.target)
+        res.web_show_str   = ("<strong>%s</strong> %s %s %s (source: %s, target: %s)" %
                               (res.name, colorize_bg(res.channel_handle), res.role, name, res.source, res.target))
 
     elif perf == '13':
@@ -1021,6 +1060,10 @@ Generated from PDML on <b>'''
         print "</div>"                                                         # end level:2
         print "</div>"                                                         # end level:1
 
+    # shortened names, if any
+    short_link_names.htmlDump()
+    short_endp_names.htmlDump()
+
     # legend
     print '''
 <div width=\"100%%\" style=\"display:block  margin-bottom: 2px\" id=\"legend\">
@@ -1037,7 +1080,7 @@ The AMQP 'server' port (either 5672, or one of the decode-as ports) is always on
 <li><strong>close</strong> [0] always channel 0</li>
 <li><strong>begin</strong> [channel,remoteChannel]</li>
 <li><strong>end</strong> [channel]</li>
-<li><strong>attach</strong> [channel,handle] role "name" (source: src, target: tgt)</li>
+<li><strong>attach</strong> [channel,handle] role name (source: src, target: tgt)</li>
 <li><strong>detach</strong> [channel, handle]</li>
 <li><strong>flow</strong> [channel,handle](deliveryCount, linkCredit)</li>
 <li><strong>transfer</strong> [channel,handle] (id)|(id..id)</li>
@@ -1045,6 +1088,7 @@ The AMQP 'server' port (either 5672, or one of the decode-as ports) is always on
 </ul>
 <li>AMQP version-independent <strong>init</strong> details
 <li>AMQP 0.x <strong>method(s)</strong>
+<li>Names of links, sources, and targets longer than 25 characters are shortened to the form "name_XX". Generated temporary names may exceed 150 characters and contribute little to understanding the protocol. You can hover over the shortened names in the displayed frames to see the full text in a popup and you may refer to a table of shortened names that appears after the AMQP Frames display to see all the translated names.
 </ul>
 <h3>Protocol frame expansion</h3>
 <ul>
