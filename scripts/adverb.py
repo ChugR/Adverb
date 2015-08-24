@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 3.0
+# Version 3.1
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -162,6 +162,17 @@ def colorize_performative_error(proto, res):
         e_size      = error.get("size")
         if int(e_size) > 1:
             res.name = "<span style=\"background-color:yellow\">" + res.name + "</span>"
+
+#
+# Given a hex ascii string, return printable string w/o control codes
+def dehexify_no_control_chars(valuetext):
+    tmp = valuetext.decode("hex")
+    res = ""
+    for ch in tmp:
+        if ord(ch) < 32 or ord(ch) >= 127:
+            ch = '.'
+        res += ch
+    return res
 
 #
 #
@@ -624,7 +635,7 @@ def show_fields(parent, level):
         showascii = ""
         if (childname == "amqp.data" or childname == "amqp.amqp_value"):
             try:
-                showascii = " <span style=\"background-color:white\">\'" + valuetext.decode("hex") + "\'</span>"
+                showascii = " <span style=\"background-color:white\">\'" + dehexify_no_control_chars(valuetext) + "\'</span>"
             except:
                 pass
         if showname is not None and len(showname) > 0:
