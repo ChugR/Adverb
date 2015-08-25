@@ -44,101 +44,136 @@ def main_except(argv):
     amqp_pdml_file = root + "-amqp.pdml"
     amqp_html_file = root + ".html"
 
-    print arg_pcapng_file
-    print full_pdml_file
-    print amqp_pdml_file
-    print amqp_html_file
-    sys.exit('bye')
-    
-    # convert .pcapng to .pdml
-    #
-    # open out and err files
-    #tsStdoutFn   = workdir + "/ts_stdout"
-    #tsStderrFn   = workdir + "/ts_stderr"
-    #f_stdout = open(tsStdoutFn, 'w')
-    #f_stderr = open(tsStderrFn, 'w')
+    # create workspace
+    workdir = tempfile.mkdtemp()
 
+    # open out and err files
+    tsStdoutFn   = full_pdml_file
+    tsStderrFn   = workdir + "/ts_stderr"
+    f_stdout = open(tsStdoutFn, 'w')
+    f_stderr = open(tsStderrFn, 'w')
+
+    # convert .pcapng to full.pdml
+    #
     # generate tshark command line
-    #args = []
-    #args.append("./tshark")
-    #args.append("-2")
-    #args.append("-r")
-    #args.append(userBinFn)
-    #args.extend(selectors)
-    #if not form.getvalue('searchhard'):
-    #    args.append("-Y")
-    #    args.append("amqp")
-    #args.append("-T")
-    #args.append("pdml")
+    args = []
+    args.append("tshark")
+    args.append("-2")
+    args.append("-r")
+    args.append(arg_pcapng_file)
+    args.append("-T")
+    args.append("pdml")
 
-    # run tshark .pcapng -> .pdml
-    #try:
-    #    subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
-    #except Exception, e:
-    #    print "Status: 500 Internal Server Error"
-    #    print "Content-Type: text/plain"
-    #    print
-    #    print "Tshark utility error %s processing %s" % (str(e), fn)
-    #    print
-    #    f_stdout.close()
-    #    f_stderr.close()
-    #    print_file(tsStdoutFn)
-    #    print_file(tsStderrFn)
-    #    sys.exit(0)
+    # run tshark .pcapng -> -full.pdml
+    try:
+        print "Generating full pdml..."
+        subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
+    except Exception, e:
+        print "Tshark utility error %s processing %s" % (str(e), arg_pcapng_file)
+        print
+        f_stdout.close()
+        f_stderr.close()
+        print_file(tsStdoutFn)
+        print_file(tsStderrFn)
+        sys.exit(0)
 
-    #f_stdout.close()
-    #f_stderr.close()
+    f_stdout.close()
+    f_stderr.close()
 
-    # show only pdml
-    #if form.getvalue('showpdml'):
-    #    print "Content-Type: text/text"
-    #    print
-    #    print "Generated with: %s" % args
-    #    print
-    #    print_file(tsStderrFn)
-    #    print_file(tsStdoutFn)
-    #    sys.exit(0)
+    # scan the full pdml to detect probable AMQP ports in use
+    #
+    print "Scanning for probable AMQP ports..."
+    portlist = []
+    src=""
+    dst=""
+    with open(full_pdml_file, "r") as ins:
+        for line in ins:
+            fields = line.split()
+	    if line.startswith("    <field name=\"tcp.srcport\""):
+	        src = fields[4]
+	    if line.startswith("    <field name=\"tcp.dstport\""):
+	        dst = fields[4]
+	    if line.find("414d5150") > 0:
+	        if dst not in portlist and src not in portlist:
+		    portlist.append(dst)
+	        src=""
+	        dst=""
+    portlist = filter(None, portlist)
+    print ("AMQP Ports: ", portlist)
+    
+    # open out and err files
+    tsStdoutFn   = amqp_pdml_file
+    tsStderrFn   = workdir + "/ts_stderr"
+    f_stdout = open(tsStdoutFn, 'w')
+    f_stderr = open(tsStderrFn, 'w')
 
-    # convert .pdml to .html
+    # convert .pcapng to -amqp.pdml
+    #
+    # generate tshark command line
+    args = []
+    args.append("tshark")
+    args.append("-2")
+    args.append("-r")
+    args.append(arg_pcapng_file)
+    args.append("-Y")
+    args.append("amqp")
+    args.append("-T")
+    args.append("pdml")
+    for port in portlist:
+        args.append("-d")
+        args.append("tcp.port==" + port + ",amqp")
+
+    # run tshark .pcapng -> -amqp.pdml
+    try:
+        print "Generating amqp-only pdml..."
+        subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
+    except Exception, e:
+        print "Tshark utility error %s processing %s" % (str(e), arg_pcapng_file)
+        print
+        f_stdout.close()
+        f_stderr.close()
+        print_file(tsStdoutFn)
+        print_file(tsStderrFn)
+        sys.exit(0)
+
+    f_stdout.close()
+    f_stderr.close()
+
+    #
+    # convert -amqp.pdml to -amqp.html
     #
     # open out and err files
-    #advStdoutFn   = workdir + "/adv_stdout"
-    #advStderrFn   = workdir + "/adv_stderr"
-    #f_stdout = open(advStdoutFn, 'w')
-    #f_stderr = open(advStderrFn, 'w')
+    advStdoutFn   = amqp_html_file
+    advStderrFn   = workdir + "/adv_stderr"
+    f_stdout = open(advStdoutFn, 'w')
+    f_stderr = open(advStderrFn, 'w')
 
     # generate adverb command line
-    #args = []
-    #args.append("../scripts/adverb.py")
-    #args.append(tsStdoutFn)
-    #args.append(fileitem.filename)
-    #args.append(formSelectors)
-    #args.append("")     # deprecated comment
+    args = []
+    args.append("../adverb.py")
+    args.append(amqp_pdml_file)
+    args.append(arg_pcapng_file)
+    args.append(' '.join(portlist))
+    args.append("")     # deprecated comment
 
-    # run adverb script .pdml -> .html
-    #try:
-    #    subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
-    #except Exception, e:
-    #    print "Status: 500 Internal Server Error"
-    #    print "Content-Type: text/plain"
-    #    print
-    #    print "Adverb utility error %s processing %s" % (str(e), userPdmlFn)
-    #    print
-    #    f_stdout.close()
-    #    f_stderr.close()
-    #    print_file(advStdoutFn)
-    #    print_file(advStderrFn)
-    #    sys.exit(0)
+    # run adverb script -amqp.pdml -> .html
+    try:
+        print "Generating html..."
+        subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
+    except Exception, e:
+        print "Adverb utility error %s processing %s" % (str(e), userPdmlFn)
+        print
+        f_stdout.close()
+        f_stderr.close()
+        print_file(advStdoutFn)
+        print_file(advStderrFn)
+        sys.exit(0)
 
-    #f_stdout.close()
-    #f_stderr.close()
+    f_stdout.close()
+    f_stderr.close()
 
     # hereis
-    #print "Content-Type: text/html"
-    #print
-    #with open(advStdoutFn) as f:
-    #    print f.read()
-
+    print "Done. To view the file open file://" + os.path.abspath(amqp_html_file)
 
 def main(argv):
     try:
