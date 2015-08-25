@@ -101,14 +101,14 @@ def main_except(argv):
     portlist = filter(None, portlist)
     print ("AMQP Ports: ", portlist)
     
+    # convert .pcapng to -amqp.pdml
+    #
     # open out and err files
     tsStdoutFn   = amqp_pdml_file
     tsStderrFn   = workdir + "/ts_stderr"
     f_stdout = open(tsStdoutFn, 'w')
     f_stderr = open(tsStderrFn, 'w')
 
-    # convert .pcapng to -amqp.pdml
-    #
     # generate tshark command line
     args = []
     args.append("tshark")
@@ -139,7 +139,6 @@ def main_except(argv):
     f_stdout.close()
     f_stderr.close()
 
-    #
     # convert -amqp.pdml to -amqp.html
     #
     # open out and err files
@@ -173,7 +172,7 @@ def main_except(argv):
     f_stderr.close()
 
     # hereis
-    print "Done. To view the file open file://" + os.path.abspath(amqp_html_file)
+    print "Done. Open file://" + os.path.abspath(amqp_html_file)
 
 def main(argv):
     try:
