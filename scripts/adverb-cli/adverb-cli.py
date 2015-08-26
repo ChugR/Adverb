@@ -71,7 +71,7 @@ def main_except(argv):
     amqp_pdml_file = root + "-amqp.pdml"
     amqp_html_file = root + ".html"
 
-    # create empty port list to use when port scan is disabled
+    # ports discovered by port scan
     portlist = []
     
     # create workspace
@@ -80,7 +80,7 @@ def main_except(argv):
     if enable_autodetect:
         # open out and err files
         tsStdoutFn   = full_pdml_file
-        tsStderrFn   = workdir + "/ts_stderr"
+        tsStderrFn   = os.path.join(workdir + os.sep + "ts_stderr")
         f_stdout = open(tsStdoutFn, 'w')
         f_stderr = open(tsStderrFn, 'w')
 
@@ -100,7 +100,7 @@ def main_except(argv):
             print "Generating full pdml..."
             subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
         except Exception, e:
-            print "Tshark utility error %s processing %s" % (str(e), arg_pcapng_file)
+            print "Tshark utility error %s while processing file %s" % (str(e), arg_pcapng_file)
             print
             f_stdout.close()
             f_stderr.close()
@@ -119,15 +119,15 @@ def main_except(argv):
         with open(full_pdml_file, "r") as ins:
             for line in ins:
                 fields = line.split()
-	        if line.startswith("    <field name=\"tcp.srcport\""):
-	            src = fields[4]
-	        if line.startswith("    <field name=\"tcp.dstport\""):
-	            dst = fields[4]
-	        if line.find("414d5150") > 0:
-	            if dst not in portlist and src not in portlist:
-		        portlist.append(dst)
-	            src=""
-	            dst=""
+                if line.startswith("    <field name=\"tcp.srcport\""):
+                    src = fields[4]
+                if line.startswith("    <field name=\"tcp.dstport\""):
+                    dst = fields[4]
+                if line.find("414d5150") > 0:
+                    if dst not in portlist and src not in portlist:
+                        portlist.append(dst)
+                    src=""
+                    dst=""
         portlist = filter(None, portlist)
         print ("AMQP Ports: ", portlist)
     
@@ -135,7 +135,7 @@ def main_except(argv):
     #
     # open out and err files
     tsStdoutFn   = amqp_pdml_file
-    tsStderrFn   = workdir + "/ts_stderr"
+    tsStderrFn   = os.path.join(workdir + os.sep + "ts_stderr")
     f_stdout = open(tsStdoutFn, 'w')
     f_stderr = open(tsStderrFn, 'w')
 
@@ -158,7 +158,7 @@ def main_except(argv):
         print "Generating amqp-only pdml..."
         subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
     except Exception, e:
-        print "Tshark utility error %s processing %s" % (str(e), arg_pcapng_file)
+        print "Tshark utility error %s while processing file %s" % (str(e), arg_pcapng_file)
         print
         f_stdout.close()
         f_stderr.close()
@@ -173,13 +173,13 @@ def main_except(argv):
     #
     # open out and err files
     advStdoutFn   = amqp_html_file
-    advStderrFn   = workdir + "/adv_stderr"
+    advStderrFn   = os.path.join(workdir + os.sep + "adv_stderr")
     f_stdout = open(advStdoutFn, 'w')
     f_stderr = open(advStderrFn, 'w')
 
     # generate adverb command line
     args = []
-    args.append("../adverb.py")
+    args.append(os.path.join(os.pardir + os.sep + "adverb.py"))
     args.append(amqp_pdml_file)
     args.append(arg_pcapng_file)
     args.append(' '.join(portlist))
@@ -190,7 +190,7 @@ def main_except(argv):
         print "Generating html..."
         subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
     except Exception, e:
-        print "Adverb utility error %s processing %s" % (str(e), amqp_pdml_file)
+        print "Adverb utility error %s while processing file %s" % (str(e), amqp_pdml_file)
         print
         f_stdout.close()
         f_stderr.close()
@@ -202,7 +202,7 @@ def main_except(argv):
     f_stderr.close()
 
     # hereis
-    print "Done. Open file://" + os.path.abspath(amqp_html_file)
+    print "Done. Open file://" + os.path.abspath(amqp_html_file) + " to view the result."
 
 #
 #
