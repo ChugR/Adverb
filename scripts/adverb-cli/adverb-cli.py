@@ -3,20 +3,29 @@
 # Adverb Version 3.0
 #
 # Run adverb from a command prompt on the local system.
-# The adverb web server fails with timeouts when processing large files.
-# Also, the web scheme of saying which ports are amqp ports is lame.
-# This scheme fixes both problems.
+# * Process large files that cause web server timeouts.
+# * Automatically detect AMQP ports, or not.
+#   CLI switch disables autodetect to scan for 5672 only.
+#
+# A pcapng file created during a run of qpid dispatch router self
+# test is processed by this script. The file sizes of each stage are:
+#
+# -rwxrwxr-x. 1 chug chug      5893 Aug 26 06:24 adverb-cli.py
+# -rw-rw-r--. 1 chug chug 168273447 Aug 26 06:24 q2-amqp.pdml
+# -rw-rw-r--. 1 chug chug 178141270 Aug 26 06:24 q2-full.pdml
+# -rw-rw-r--. 1 chug chug  54446399 Aug 26 06:24 q2.html
+# -r--r--r--. 1 chug chug   3368332 Aug 25 16:23 q2.pcapng
+#
+# The interdediate pdml files are 50x the size of the pcapng file.
+# The result html is 15x-20x the size of the pcapng file.
+# These ratios may vary depending on the density of AMQP frames in
+# the original capture file but be prepared for huge analysis files.
+#
 
 import sys
 import os
 import tempfile
 import subprocess
-
-def print_file(filename):
-    statinfo = os.stat(filename)
-    print "File: %s, size = %s, contents:" % (filename, statinfo.st_size)
-    with open(filename) as f:
-        print f.read()
 
 #
 #
@@ -28,11 +37,21 @@ class ExitStatus(Exception):
 #
 def main_except(argv):
     """Given a pcapng file name, generate pdml intermediate and Adverb html analysis files"""
+    usagestr = 'Usage: %s pcapng-file-name [no-autodetect-amqp-ports]' % sys.argv[0]
     if len(sys.argv) < 2:
-        sys.exit('Usage: %s pcapng-file-name' % sys.argv[0])
+        sys.exit(usagestr)
+
+    if (sys.argv[1].startswith("-h") or sys.argv[1].startswith("--help")):
+        print usagestr
+        print
+        print ' pcapng-file-name - required path to pcapng file'
+        print ' autodetect-amqp-ports - optional switch whose presence disables autodetect.'
+        sys.exit(' ')
 
     arg_pcapng_file = sys.argv[1]
+    enable_autodetect = (len(sys.argv) == 2)
 
+    # sort out path names
     if not os.path.exists(arg_pcapng_file):
         sys.exit('ERROR: pcapng file %s is not found.' % arg_pcapng_file)
 
@@ -44,62 +63,65 @@ def main_except(argv):
     amqp_pdml_file = root + "-amqp.pdml"
     amqp_html_file = root + ".html"
 
+    # create empty port list to use when port scan is disabled
+    portlist = []
+    
     # create workspace
     workdir = tempfile.mkdtemp()
 
-    # open out and err files
-    tsStdoutFn   = full_pdml_file
-    tsStderrFn   = workdir + "/ts_stderr"
-    f_stdout = open(tsStdoutFn, 'w')
-    f_stderr = open(tsStderrFn, 'w')
+    if enable_autodetect:
+        # open out and err files
+        tsStdoutFn   = full_pdml_file
+        tsStderrFn   = workdir + "/ts_stderr"
+        f_stdout = open(tsStdoutFn, 'w')
+        f_stderr = open(tsStderrFn, 'w')
 
-    # convert .pcapng to full.pdml
-    #
-    # generate tshark command line
-    args = []
-    args.append("tshark")
-    args.append("-2")
-    args.append("-r")
-    args.append(arg_pcapng_file)
-    args.append("-T")
-    args.append("pdml")
+        # convert .pcapng to full.pdml
+        #
+        # generate tshark command line
+        args = []
+        args.append("tshark")
+        args.append("-2")
+        args.append("-r")
+        args.append(arg_pcapng_file)
+        args.append("-T")
+        args.append("pdml")
 
-    # run tshark .pcapng -> -full.pdml
-    try:
-        print "Generating full pdml..."
-        subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
-    except Exception, e:
-        print "Tshark utility error %s processing %s" % (str(e), arg_pcapng_file)
-        print
+        # run tshark .pcapng -> -full.pdml
+        try:
+            print "Generating full pdml..."
+            subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
+        except Exception, e:
+            print "Tshark utility error %s processing %s" % (str(e), arg_pcapng_file)
+            print
+            f_stdout.close()
+            f_stderr.close()
+            print_file(tsStdoutFn)
+            print_file(tsStderrFn)
+            sys.exit(0)
+
         f_stdout.close()
         f_stderr.close()
-        print_file(tsStdoutFn)
-        print_file(tsStderrFn)
-        sys.exit(0)
 
-    f_stdout.close()
-    f_stderr.close()
-
-    # scan the full pdml to detect probable AMQP ports in use
-    #
-    print "Scanning for probable AMQP ports..."
-    portlist = []
-    src=""
-    dst=""
-    with open(full_pdml_file, "r") as ins:
-        for line in ins:
-            fields = line.split()
-	    if line.startswith("    <field name=\"tcp.srcport\""):
-	        src = fields[4]
-	    if line.startswith("    <field name=\"tcp.dstport\""):
-	        dst = fields[4]
-	    if line.find("414d5150") > 0:
-	        if dst not in portlist and src not in portlist:
-		    portlist.append(dst)
-	        src=""
-	        dst=""
-    portlist = filter(None, portlist)
-    print ("AMQP Ports: ", portlist)
+        # scan the full pdml to detect probable AMQP ports in use
+        #
+        print "Scanning for probable AMQP ports..."
+        src=""
+        dst=""
+        with open(full_pdml_file, "r") as ins:
+            for line in ins:
+                fields = line.split()
+	        if line.startswith("    <field name=\"tcp.srcport\""):
+	            src = fields[4]
+	        if line.startswith("    <field name=\"tcp.dstport\""):
+	            dst = fields[4]
+	        if line.find("414d5150") > 0:
+	            if dst not in portlist and src not in portlist:
+		        portlist.append(dst)
+	            src=""
+	            dst=""
+        portlist = filter(None, portlist)
+        print ("AMQP Ports: ", portlist)
     
     # convert .pcapng to -amqp.pdml
     #
@@ -174,6 +196,8 @@ def main_except(argv):
     # hereis
     print "Done. Open file://" + os.path.abspath(amqp_html_file)
 
+#
+#
 def main(argv):
     try:
         main_except(argv)
@@ -184,5 +208,7 @@ def main(argv):
         print "%s: %s"%(type(e).__name__, e)
         return 1
 
+#
+#
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
