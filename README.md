@@ -1,41 +1,61 @@
-Adverb - a project to distill Wireshark trace data into web pages
-that show details of the AMQP protocol.
+#  Adverb - distill AMQP net trace into web page
 
-The data flow starts with a .pcapng file. This can be created by
-Wireshark or some other network capture tool. This file captures
+Wireshark is a great tool for capturing and viewing network traces. When it comes to AMQP traces, however, it's difficult to make sense of the larger picture of the protocol operation. All of the details are there but the general flow of AMQP connection and link activity has to be pieced together with a lot of clicks in Wireshark.
+
+Welcome to Adverb. Adverb is tuned to AMQP and helpfully summarizes AMQP protocol activity on an interactive web page. An Adverb web page is laid out with:
+
+* Page controls
+* Connection data display controls
+* AMQP Frames
+* Decode legend and notes
+
+
+## Data Flow
+
+Adverb can be used as a web server or as a stand-alone CLI process. The data flow for both cases is the same:
+
+* Start with a .pcapng file. This can be created by
+Wireshark or some other network capture tool. This file holds
 the binary AMQP traffic of interest.
 
-Next the data is processed by tshark (terminal shark) to produce
+* Process the capture file with *tshark* (terminal shark) to produce
 a .pdml file, which is like .xml for protocol data.
 
-Finally the pdml is processed by a script that emits javascript html
+* Process the pdml file with a script that emits javascript html
 that a browser displays.
 
-In its current form Adverb is set up to be a cgi-bin web service
-and consists of three files:
+The web pages are indexed and metadata provides high level views of what's going on.
 
-  scripts/html/adverb.html   - The server web form
-  scripts/cgi-bin/adverb.sh  - Bash script to process form data:
-                                * use tshark to generate pdml
-                                * run adverb.py to generate html
-  scripts/adverb.py          - Python code to generate html from pdml
+## As a Web Server
 
-An example web page is available to demonstrate the output.
+As a cgi-bin web service Adverb consists of three files:
 
-  example/dispatch-router-test.pcapng.html
+*  scripts/html/adverb.html   - The server web form
+*  scripts/cgi-bin/adverb.sh  - Bash script to process form data:
+ * use tshark to generate pdml
+ * run adverb.py to generate html
+* scripts/adverb.py          - Python code to generate html from pdml
 
-  Load this file into your browser to see a real-world dispatch router
-  test in progress. Highlights include:
+The web service is really convenient for doing small, quick traces.
 
-  * Dozens of connections identified by host address:port pairs.
-  * Each connection shows the number of collected network frames.
-  * Connections are highlighted in color to help identify them.
-  * Each connections's frames may be shown or hidden independently.
-  * Six or seven hunderd AMQP frames are captured.
-  * Each frame has:
-    - Expand buttons for high and low levels of detail.
-    - The relative time stamp of the packet in microseconds.
-    - The frame number in the original .pcapng capture file.
-    - The host:port pair for the connection. Originating host is highlighted.
-    - The performatives or methods for the frame each with extra details.
-  * A legend describing the display details.
+* Run Wireshark; capture test traffic; save the .pcapng file.
+* Open the web server page.
+ * Browse to the saved .pcapng file
+ * Press *Upload*
+* View the distilled trace file in your browser.
+
+An advantage of the Web Service is that the processing is done on a server system with late and great Wireshark versions. The client system does not need Wireshark installed at all other than to generate the capture file.
+
+A drawback of the Web Service is the size of the files involved and pushing them through the web interface. A modest trace file of 12,000 frames may be 3.5 Mbytes. The resulting html file may be 54 Mbytes. Even with a fast server and network the download may time out and finish with an error.
+
+## As a CLI process
+
+If your local system has Wireshark installed then you are good to go. 
+
+* Run Wireshark; capture test traffic; save the .pcapng file. This is the same as with the server.
+* Run scripts/adverb-cli/adverb-cli.py including the path to the .pcapng file as arg1.
+* The .html file is generated locally and can be opened as a file.
+
+## TODO:
+
+* The scripts run on Fedora Linux and have some issues running on Windows.
