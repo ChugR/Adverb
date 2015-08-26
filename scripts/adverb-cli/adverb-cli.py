@@ -29,6 +29,14 @@ import subprocess
 
 #
 #
+def print_file(filename):
+    statinfo = os.stat(filename)
+    print "File: %s, size = %s, contents:" % (filename, statinfo.st_size)
+    with open(filename) as f:
+        print f.read()
+
+#
+#
 class ExitStatus(Exception):
     """Raised if a command wants a non-0 exit status from the script"""
     def __init__(self, status): self.status = status
@@ -182,7 +190,7 @@ def main_except(argv):
         print "Generating html..."
         subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
     except Exception, e:
-        print "Adverb utility error %s processing %s" % (str(e), userPdmlFn)
+        print "Adverb utility error %s processing %s" % (str(e), amqp_pdml_file)
         print
         f_stdout.close()
         f_stderr.close()
