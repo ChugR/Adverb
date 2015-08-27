@@ -9,14 +9,18 @@ Welcome to Adverb. Adverb is tuned to AMQP and helpfully summarizes AMQP protoco
 * AMQP Frames
 * Decode legend and notes
 
+For instance, this [simple example](http://htmlpreview.github.io/?https://github.com/ChugR/Adverb/blob/master/example/helloworld.html) illustrates some of Adverb's basic capabilities.
 
 ## Data Flow
 
 Adverb can be used as a web server or as a stand-alone CLI process. The data flow for both cases is the same:
 
+#### Before running Adverb
 * Start with a .pcapng file. This can be created by
 Wireshark or some other network capture tool. This file holds
 the binary AMQP traffic of interest.
+
+#### Work Adverb performs
 
 * Process the capture file with *tshark* (terminal shark) to produce
 a .pdml file, which is like .xml for protocol data.
@@ -34,9 +38,9 @@ As a cgi-bin web service Adverb consists of three files:
 *  scripts/cgi-bin/adverb.sh  - Bash script to process form data:
  * use tshark to generate pdml
  * run adverb.py to generate html
-* scripts/adverb.py          - Python code to generate html from pdml
+* scripts/adverb.py          - Python code to generate html from pdml. This is Adverb's real business logic.
 
-The web service is really convenient for doing small, quick traces.
+The web service is convenient for doing small, quick traces.
 
 * Run Wireshark; capture test traffic; save the .pcapng file.
 * Open the web server page.
@@ -55,6 +59,10 @@ If your local system has Wireshark installed then you are good to go.
 * Run Wireshark; capture test traffic; save the .pcapng file. This is the same as with the server.
 * Run scripts/adverb-cli/adverb-cli.py including the path to the .pcapng file as arg1.
 * The .html file is generated locally and can be opened as a file.
+
+## Example
+
+An [example](http://htmlpreview.github.io/?https://github.com/ChugR/Adverb/blob/master/example/helloworld.html) is included. It is a trace of a simple HelloWorld staged for tutorial purposes. Take a look.
 
 ## TODO:
 
