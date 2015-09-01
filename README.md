@@ -34,10 +34,10 @@ The web pages are indexed and metadata provides high level views of what's going
 
 As a cgi-bin web service Adverb consists of three files:
 
-*  scripts/html/adverb.html   - The server web form
-*  scripts/cgi-bin/adverb.sh  - Bash script to process form data:
- * use tshark to generate pdml
- * run adverb.py to generate html
+*  scripts/html/adverb.html   - The server web form.
+*  scripts/cgi-bin/adverb-cgi.py  - Python script to extract args from web form and run various subprograms.
+ * use tshark to convert pcapng trace into pdml
+ * run adverb.py to convert pdml into html
 * scripts/adverb.py          - Python code to generate html from pdml. This is Adverb's real business logic.
 
 The web service is convenient for doing small, quick traces.
