@@ -179,6 +179,7 @@ def main_except(argv):
 
     # generate adverb command line
     args = []
+    args.append("python")
     args.append(os.path.join(os.pardir + os.sep + "adverb.py"))
     args.append(amqp_pdml_file)
     args.append(arg_pcapng_file)
