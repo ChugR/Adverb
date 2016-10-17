@@ -150,8 +150,9 @@ def main_except(argv):
     args.append("-T")
     args.append("pdml")
     for port in portlist:
-        args.append("-d")
-        args.append("tcp.port==" + port + ",amqp")
+        if not port == "amqp":
+            args.append("-d")
+            args.append("tcp.port==" + port + ",amqp")
 
     # run tshark .pcapng -> -amqp.pdml
     try:
@@ -180,7 +181,7 @@ def main_except(argv):
     # generate adverb command line
     args = []
     args.append("python")
-    args.append(os.path.join(os.pardir + os.sep + "adverb.py"))
+    args.append(os.path.join(os.path.dirname(__file__) + os.sep + os.pardir + os.sep + "adverb.py"))
     args.append(amqp_pdml_file)
     args.append(arg_pcapng_file)
     args.append(' '.join(portlist))

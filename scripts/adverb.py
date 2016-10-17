@@ -641,7 +641,7 @@ def show_fields(parent, level):
         if showname is not None and len(showname) > 0:
             print "%s%s<br>" % (leading(level), showname + showascii)
         else:
-            print "%s%s<br>" % (leading(level), showtext + showascii)
+            print "%s%s<br>" % (leading(level), showascii)
         show_fields(child, level+1)
 
 #

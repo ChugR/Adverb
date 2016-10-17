@@ -57,7 +57,7 @@ for aSel in hisSelectors:
         selectors.append("-d")
         selectors.append("tcp.port==" + aSel + ",amqp")
 
-# cd into adverb/bin (where my tshark and libs are)
+# cd into adverb/bin work dir
 os.chdir("adverb/bin")
 
 # convert .pcapng to .pdml
@@ -70,7 +70,7 @@ f_stderr = open(tsStderrFn, 'w')
 
 # generate tshark command line
 args = []
-args.append("./tshark")
+args.append("tshark")
 args.append("-2")
 args.append("-r")
 args.append(userBinFn)
