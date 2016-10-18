@@ -125,7 +125,7 @@ def main_except(argv):
                     dst = fields[4]
                 if line.find("414d5150") > 0:
                     if dst not in portlist and src not in portlist:
-                        portlist.append(dst)
+                        portlist.append(dst.replace('\"',''))
                     src=""
                     dst=""
         portlist = filter(None, portlist)
