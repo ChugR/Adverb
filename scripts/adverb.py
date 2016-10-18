@@ -419,6 +419,20 @@ def extract_name(three_words):
     words = three_words.split()
     return words[1]
 
+def safe_field_attr_extract(object, fieldname, attrname, default):
+    '''
+    Given an object and a field name, extract the attribute value.
+    If the field does not exist then return the default.
+    '''
+    res = default
+    try:
+        field = object.find(fieldname)
+        if not field is None:
+            res = field.get(attrname)
+    except:
+        pass
+    return res
+
 def amqp_other_decode(proto):
     '''Given a proto that isn't a nice, clean performative, return a parsed summary'''
     res = PerformativeInfo()
@@ -585,7 +599,7 @@ def amqp_decode(proto):
         args        = proto.find("./field[@name='amqp.method.arguments']")
         role        = args.find("./field[@name='amqp.performative.arguments.role']").get("showname")
         first       = args.find("./field[@name='amqp.performative.arguments.first']").get("showname")
-        last        = args.find("./field[@name='amqp.performative.arguments.last']").get("showname")
+        last        = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.last']", "showname", first)
         res.first   = extract_name(first)
         res.last    = extract_name(last)
         res.name    = "disposition"
