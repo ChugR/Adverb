@@ -1,6 +1,6 @@
 <html>
 <head>
-<title>Project Adverb - Decode an AMQP Wireshark Trace (v3.0)</title>
+<title>Project Adverb - Decode an AMQP Wireshark Trace (v4.0)</title>
 </head>
 <body>
 <h1>Submission Form</h1>
@@ -10,6 +10,7 @@
 <li>Decode as AMQP ports:&nbsp;     <input type=text name=selectors></li>
 <li><input type=checkbox name=searchhard value="off">&nbsp;Search entire trace file for AMQP traffic</li>
 <li><input type=checkbox name=showpdml   value="off">&nbsp;Display intermediate PDML</li>
+<li><input type=checkbox name=showxferdata value="off">&nbsp;Display transfer data sorted by content</li>
 <li><input type=submit value=Upload></li>
 </ul>
 </form>
@@ -29,6 +30,10 @@ processed and produce a huge PDML intermediate file. This may take a long time.<
 <li>Display intermediate PDML<br>
 Show the wireshark .pdml intermediate file instead of the normal Adverb analysis display.<br>
 Use this option for debugging.</li>
+<li>Display transfer data sorted by content<br>
+Facts about each transfer frame are recorded and sorted by message content. <br>
+A CSV table is appended to the web page. Use this data to track the progress of a message
+as it moves between messaging endpoints. The time of each message is measured in relative microseconds.</li>
 </ul>
 <h3>Introduction</h3>
 Wireshark can capture network traffic traces and decode the various protocol's details.

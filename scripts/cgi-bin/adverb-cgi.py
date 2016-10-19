@@ -109,6 +109,11 @@ if form.getvalue('showpdml'):
     print_file(tsStdoutFn)
     sys.exit(0)
 
+# show transfer correlations
+showxferdata = 'false'
+if form.getvalue('showxferdata'):
+    showxferdata = 'true'
+
 # convert .pdml to .html
 #
 # open out and err files
@@ -123,7 +128,7 @@ args.append("../scripts/adverb.py")
 args.append(tsStdoutFn)
 args.append(fileitem.filename)
 args.append(formSelectors)
-args.append("")     # deprecated comment
+args.append(showxferdata)
 
 # run adverb script .pdml -> .html
 try:

@@ -192,6 +192,8 @@ class PerformativeInfo():
         self.name = ""
         self.channel = ""          # undecorated number - '0'
         self.handle = ""           # undecorated number - '1'
+        self.delivery_id = ""      # "0"
+        self.delivery_tag = ""     # "00:00:00:00"
         self.remote = ""           # undecorated number - '2'
         self.channel_handle = ""   # decorated - '[0,0]'
         self.channel_remote = ""   # decorated - '[1,2]'
@@ -204,6 +206,7 @@ class PerformativeInfo():
         self.target = ""
         self.first = ""            # undecorated number - '10'
         self.last = ""             # undecorated number - '20'
+        self.transfer_data = ""    # dehexified transfer data value
 
     def isConsecutiveTransfer(self, candidate):
         #assert self.name == "transfer"
@@ -314,6 +317,56 @@ def connection_dst_is_broker(packet):
     d_port = int(tcp_dst)
     return is_broker_a(d_port, s_port, global_broker_ports_list)
     
+#
+#
+def connection_src_string(packet):
+    """Given a packet, return the connection source string: src:port, """
+    assert packet is not None, "connection_src_string receives null packet"
+    proto_tcp = packet.find("./proto[@name='tcp']")
+    assert proto_tcp is not None, "connection_src_string cannot find tcp proto"
+    field_tcp_src = proto_tcp.find("./field[@name='tcp.srcport']")
+    tcp_src = field_tcp_src.get("show")
+    s_port = int(tcp_src)
+    ip_src = ""
+
+    proto_ip = packet.find("./proto[@name='ip']")
+    if proto_ip is not None:
+        ip_src = proto_ip.find("./field[@name='ip.src']").get("show")
+    else:
+        proto_ip = packet.find("./proto[@name='ipv6']")
+        if proto_ip is not None:
+            ip_src = "[" + proto_ip.find("./field[@name='ipv6.src']").get("show") + "]"
+        else:
+            assert False, "connection_src_string cannot find ip or ipv6"
+    src_addr = "%s:%s" % (ip_src, tcp_src)
+    return src_addr
+
+
+#
+#
+def connection_dst_string(packet):
+    """Given a packet, return the connection source string: dst:port, """
+    assert packet is not None, "connection_dst_string receives null packet"
+    proto_tcp = packet.find("./proto[@name='tcp']")
+    assert proto_tcp is not None, "connection_dst_string cannot find tcp proto"
+    field_tcp_dst = proto_tcp.find("./field[@name='tcp.dstport']")
+    tcp_dst = field_tcp_dst.get("show")
+    d_port = int(tcp_dst)
+    ip_dst = ""
+
+    proto_ip = packet.find("./proto[@name='ip']")
+    if proto_ip is not None:
+        ip_dst = proto_ip.find("./field[@name='ip.dst']").get("show")
+    else:
+        proto_ip = packet.find("./proto[@name='ipv6']")
+        if proto_ip is not None:
+            ip_dst = "[" + proto_ip.find("./field[@name='ipv6.dst']").get("show") + "]"
+        else:
+            assert False, "connection_dst_string cannot find ip or ipv6"
+    dst_addr = "%s:%s" % (ip_dst, tcp_dst)
+    return dst_addr
+
+
 #
 #
 def connection_show_util(packet, sep_broker_r, sep_broker_l, bg_start="", bg_end=""):
@@ -497,7 +550,7 @@ def amqp_other_decode(proto):
     res.web_show_str = "<strong>???</strong> Undecoded frame"
     return res
 
-def amqp_decode(proto):
+def amqp_decode(proto, arg_display_xfer=False):
     assert proto is not None, "amqp_decode receives null proto"
 
     '''Given an amqp proto, return parsed PerformativeInfo summary'''
@@ -587,11 +640,17 @@ def amqp_decode(proto):
         args            = proto.find("./field[@name='amqp.method.arguments']")
         handle          = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
         res.handle      = extract_name(handle)
+        delivery_id     = args.find("./field[@name='amqp.performative.arguments.deliveryId']").get("showname")
+        res.delivery_id = extract_name(delivery_id)
+        delivery_tag    = args.find("./field[@name='amqp.performative.arguments.deliveryTag']").get("showname")
+        res.delivery_tag= extract_name(delivery_tag)
         transfer_id     = args.find("./field[@name='amqp.performative.arguments.deliveryId']").get("showname")
         res.transfer_id = extract_name(transfer_id)
         res.name        = "transfer"
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
         res.web_show_str  = "<strong>%s</strong>  %s (%s)" % (res.name, colorize_bg(res.channel_handle), res.transfer_id)
+        if arg_display_xfer:
+            res.transfer_data = get_transfer_data(proto)
 
     elif perf == '15':
         # Performative: disposition [channel] (role first-last)
@@ -660,6 +719,27 @@ def show_fields(parent, level):
 
 #
 #
+def get_transfer_data(parent):
+    '''
+    Find transfer proto's amqp.data or amqp.amqp_value field as printable text
+    '''
+    result = ''
+    for child in parent:
+        childname = child.get("name")
+        valuetext = child.get("value")
+        if (childname == "amqp.data" or childname == "amqp.amqp_value"):
+            try:
+                result = dehexify_no_control_chars(valuetext)
+            except:
+                pass
+            break
+        #result = get_transfer_data(child)
+        #if not result == '':
+        #    break
+    return result
+
+#
+#
 def show_flow_list(title, flow_list, label):
     '''Print non-empty flow list'''
     if len(flow_list) > 0:
@@ -677,11 +757,12 @@ def show_flow_list(title, flow_list, label):
 def main_except(argv):
     """Given a pdml file name, send the javascript web page to stdout"""
     if len(sys.argv) < 5:
-        sys.exit('Usage: %s pdml-file-name trace-file-display-name broker-ports user-note' % sys.argv[0])
+        sys.exit('Usage: %s pdml-file-name trace-file-display-name broker-ports displayXferCorrelation' % sys.argv[0])
 
     arg_pdml_file    = sys.argv[1]
     arg_display_name = sys.argv[2]
     arg_broker_ports = sys.argv[3]
+    arg_display_xfer = sys.argv[4] == 'true'
 
     #for x in range (0, 5):
     #    print "arg %s: %s<br>" % (x, sys.argv[x])
@@ -785,6 +866,9 @@ def main_except(argv):
                 proto_id = f_idc + str(proto_index) + "d"
                 frame_to_protos_map[ f_id ].append( proto_id )
                 proto_index += 1
+
+    # create a map of transfer performatives. key=transfer data, value=list of frames sending that data
+    transfer_data = {}
 
     # start up the web stuff
     print "<html>"
@@ -1011,7 +1095,7 @@ Generated from PDML on <b>'''
         protos = packet.findall('proto')
         for proto in protos:
             if proto.get("name") == "amqp":
-                decoded_proto = amqp_decode(proto)
+                decoded_proto = amqp_decode(proto, False)
                 if decoded_proto.name == "transfer":
                     if transfer_first is None:
                         transfer_first = decoded_proto
@@ -1068,7 +1152,7 @@ Generated from PDML on <b>'''
         proto_index = 0
         for proto in protos:
             if proto.get("name") == "amqp":
-                decoded_proto = amqp_decode(proto)
+                decoded_proto = amqp_decode(proto, arg_display_xfer)
                 proto_id = f_idc + str(proto_index) + "d"
                 print ("<div width=\"100%%\" style=\"background-color:#e5e5e5; margin-bottom: 2px\" id=\"%s\">" 
                        % (f_idc + str(proto_index)))                             # begin level:3
@@ -1082,6 +1166,15 @@ Generated from PDML on <b>'''
                 proto_index += 1
                 print "</div>"                                                 # end level:4
                 print "</div>"                                                 # end level:3
+                # Emit cross indexed transfer data info
+                if arg_display_xfer and decoded_proto.name == "transfer":
+                    info = "%s, %s, %s, %s, %s, %s, %s, %s, \"%s\"" % (frame_num(packet), frame_time_relative(packet), connection_src_string(packet),
+                                                                   connection_dst_string(packet), decoded_proto.channel, decoded_proto.handle,
+                                                                   decoded_proto.delivery_id, decoded_proto.delivery_tag, decoded_proto.transfer_data)
+                    if not decoded_proto.transfer_data in transfer_data:
+                        transfer_data[decoded_proto.transfer_data] = []
+                    transfer_data[decoded_proto.transfer_data].append(info)
+
         print "</div>"                                                         # end level:2
         print "</div>"                                                         # end level:1
 
@@ -1124,12 +1217,21 @@ The AMQP 'server' port (either 5672, or one of the decode-as ports) is always on
 <ul>
 <li>Close, End, or Detach performatives that indicate errors are highlighted in yellow.</li>
 <li>Note that the <strong>[channel,handle]</strong> fields are highlighted with background colors to make protocol exchanges easier to see.</li>
-<li>Wireshark generally displays hex data for AMQP message payloads. Adverb attempts to show transfer frame AMQP-value fields readable ascii.</li>
+<li>Wireshark generally displays hex data for AMQP message payloads. Adverb attempts to show transfer frame AMQP-value fields in readable ascii.</li>
 </ul>
 <h3>Notes on searching</h3>
 You may use your browser's Ctrl-F search feature to search for text on the screen. However, this search does not find any of the hidden text. You may use the <strong>Expand-all page view</strong> Page control to expand all the details in every frame. Then use the Ctrl-F to search for text anywhere in the details of each frame.
 </div>
 '''
+
+    # print the indexed content
+    if arg_display_xfer:
+        print "<h3>Indexed content</h3>"
+        print ("Frame, Time, Src, Dst, Channel, Handle, DeliveryId, DeliveryTag, Data<br>")
+        for key in transfer_data:
+            hits = transfer_data[key]
+            for hit in hits:
+                print ("%s<br>" % (hit))
 
     # close the html page
     print '''</body>

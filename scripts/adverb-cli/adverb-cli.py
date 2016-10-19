@@ -185,11 +185,12 @@ def main_except(argv):
     args.append(amqp_pdml_file)
     args.append(arg_pcapng_file)
     args.append(' '.join(portlist))
-    args.append("")     # deprecated comment
+    args.append('true') # always generate correlated xfer table
 
     # run adverb script -amqp.pdml -> .html
     try:
         print "Generating html..."
+        # print "%s" % args # snoop the command args for local debugging
         subprocess.check_call(args, stdout=f_stdout, stderr=f_stderr)
     except Exception, e:
         print "Adverb utility error %s while processing file %s" % (str(e), amqp_pdml_file)
