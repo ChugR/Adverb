@@ -70,7 +70,7 @@ f_stderr = open(tsStderrFn, 'w')
 
 # generate tshark command line
 args = []
-args.append("tshark")
+args.append("./tshark")
 args.append("-2")
 args.append("-r")
 args.append(userBinFn)

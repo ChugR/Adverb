@@ -706,7 +706,7 @@ def show_fields(parent, level):
         valuetext = child.get("value")
         # python2
         showascii = ""
-        if (childname == "amqp.data" or childname == "amqp.amqp_value"):
+        if (childname == "amqp.data" or childname == "amqp.amqp_value" or childname == "amqp.value"):
             try:
                 showascii = " <span style=\"background-color:white\">\'" + dehexify_no_control_chars(valuetext) + "\'</span>"
             except:
@@ -727,7 +727,7 @@ def get_transfer_data(parent):
     for child in parent:
         childname = child.get("name")
         valuetext = child.get("value")
-        if (childname == "amqp.data" or childname == "amqp.amqp_value"):
+        if (childname == "amqp.data" or childname == "amqp.amqp_value" or childname == "amqp.value"):
             try:
                 result = dehexify_no_control_chars(valuetext)
             except:
