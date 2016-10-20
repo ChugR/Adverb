@@ -869,6 +869,7 @@ def main_except(argv):
 
     # create a map of transfer performatives. key=transfer data, value=list of frames sending that data
     transfer_data = {}
+    transfer_data_list = []
 
     # start up the web stuff
     print "<html>"
@@ -1173,6 +1174,7 @@ Generated from PDML on <b>'''
                                                                    decoded_proto.delivery_id, decoded_proto.delivery_tag, decoded_proto.transfer_data)
                     if not decoded_proto.transfer_data in transfer_data:
                         transfer_data[decoded_proto.transfer_data] = []
+                        transfer_data_list.append(decoded_proto.transfer_data)
                     transfer_data[decoded_proto.transfer_data].append(info)
 
         print "</div>"                                                         # end level:2
@@ -1228,7 +1230,7 @@ You may use your browser's Ctrl-F search feature to search for text on the scree
     if arg_display_xfer:
         print "<h3>Indexed content</h3>"
         print ("Frame, Time, Src, Dst, Channel, Handle, DeliveryId, DeliveryTag, Data<br>")
-        for key in transfer_data:
+        for key in transfer_data_list:
             hits = transfer_data[key]
             for hit in hits:
                 print ("%s<br>" % (hit))

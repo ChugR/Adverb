@@ -181,7 +181,7 @@ def main_except(argv):
     # generate adverb command line
     args = []
     args.append("python")
-    args.append(os.path.join(os.path.dirname(__file__) + os.sep + os.pardir + os.sep + "adverb.py"))
+    args.append(os.path.join(os.path.abspath(os.path.dirname(__file__)) + os.sep + os.pardir + os.sep + "adverb.py"))
     args.append(amqp_pdml_file)
     args.append(arg_pcapng_file)
     args.append(' '.join(portlist))
