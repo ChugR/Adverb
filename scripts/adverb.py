@@ -595,8 +595,12 @@ def amqp_decode(proto, arg_display_xfer=False):
         tgt         = None
         if tmpsrc is not None:
             src       = tmpsrc.find("./field[@name='amqp.performative.arguments.address']")
+            if src is None:
+                src   = tmpsrc.find("./field[@name='amqp.performative.arguments.address.string']")
         if tmptgt is not None:
             tgt       = tmptgt.find("./field[@name='amqp.performative.arguments.address']")
+            if tgt is None:
+                tgt   = tmptgt.find("./field[@name='amqp.performative.arguments.address.string']")
         if tmpname is not None:
             name = extract_name(tmpname.get("showname"))
         else:
