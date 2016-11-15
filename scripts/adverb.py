@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 3.1
+# Version 3.2
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -307,6 +307,7 @@ class ShortNames():
 
 short_link_names = ShortNames("link")
 short_endp_names = ShortNames("endpoint")
+short_data_names = ShortNames("message_data")
 
 #
 #
@@ -758,7 +759,9 @@ def show_fields(parent, level):
         showascii = ""
         if (childname == "amqp.data" or childname == "amqp.amqp_value" or childname == "amqp.value"):
             try:
-                showascii = " <span style=\"background-color:white\">\'" + dehexify_no_control_chars(valuetext) + "\'</span>"
+                asascii   = dehexify_no_control_chars(valuetext)
+                asascii   = short_data_names.translate(asascii)
+                showascii = " <span style=\"background-color:white\">\'" + asascii + "\'</span>"
             except:
                 pass
         if showname is not None and len(showname) > 0:
@@ -773,6 +776,7 @@ def get_transfer_data(parent):
     '''
     Find transfer proto's amqp.data or amqp.amqp_value field as printable text
     '''
+    global short_data_names
     result = ''
     for child in parent:
         childname = child.get("name")
@@ -780,6 +784,7 @@ def get_transfer_data(parent):
         if (childname == "amqp.data" or childname == "amqp.amqp_value" or childname == "amqp.value"):
             try:
                 result = dehexify_no_control_chars(valuetext)
+                result = short_data_names.translate(result)
             except:
                 pass
             break
@@ -1263,6 +1268,7 @@ Generated from PDML on <b>'''
     # shortened names, if any
     short_link_names.htmlDump()
     short_endp_names.htmlDump()
+    short_data_names.htmlDump()
 
     # legend
     print '''
