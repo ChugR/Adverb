@@ -154,14 +154,59 @@ def colorize_bg(pattern):
     return "<span style=\"background-color:%s\">%s</span>" % (pattern_bg_color_map[pattern], pattern)
 
 #
+#
+global_highlighted_errors = 0
+global_tcp_expert_notices = 0
+global_dispositions_accepted = 0
+global_dispositions_rejected = 0
+global_dispositions_released = 0
+global_dispositions_modified = 0
+global_dispositions_no_delivery_state = 0
+
+#
 # colorize a directive with an error indication
 def colorize_performative_error(proto, res):
+    global global_highlighted_errors
     args        = proto.find("./field[@name='amqp.method.arguments']")
     error       = args.find("./field[@name='amqp.performative.arguments.error']")
     if not error is None:
         e_size      = error.get("size")
         if int(e_size) > 1:
             res.name = "<span style=\"background-color:yellow\">" + res.name + "</span>"
+            global_highlighted_errors += 1
+
+#
+# colorize a disposition directive that does not have deliver-state.accepted
+# TODO: choices are: absent, accepted, rejected, released, modified
+def colorize_dispositions_not_accepted(proto, res):
+    global global_dispositions_accepted
+    global global_dispositions_rejected
+    global global_dispositions_released
+    global global_dispositions_modified
+    global global_dispositions_no_delivery_state
+    colorize = False
+    args  = proto.find("./field[@name='amqp.method.arguments']")
+    state = args.find("./field[@name='amqp.delivery-state.accepted']")
+    if not state is None:
+        global_dispositions_accepted += 1
+    else:
+        colorize = True
+        state = args.find("./field[@name='amqp.delivery-state.rejected']")
+        if not state is None:
+            global_dispositions_rejected += 1
+        else:
+            state = args.find("./field[@name='amqp.delivery-state.released']")
+            if not state is None:
+                global_dispositions_released += 1
+            else:
+                state = args.find("./field[@name='amqp.delivery-state.modified']")
+                if not state is None:
+                    global_dispositions_modified += 1
+                else:
+                    global_dispositions_no_delivery_state += 1
+        if colorize:
+            res.name = "<span style=\"background-color:gold\">" + res.name + "</span>"
+
 
 #
 # Given a hex ascii string, return printable string w/o control codes
@@ -666,6 +711,7 @@ def amqp_decode(proto, arg_display_xfer=False):
         res.first   = extract_name(first)
         res.last    = extract_name(last)
         res.name    = "disposition"
+        colorize_dispositions_not_accepted(proto, res)
         res.role    = extract_name(role)
         res.web_show_str  = ("<strong>%s</strong>  [%s] (%s %s-%s)" % 
                              (res.name, res.channel, res.role, res.first, res.last))
@@ -762,6 +808,14 @@ def main_except(argv):
     """Given a pdml file name, send the javascript web page to stdout"""
     if len(sys.argv) < 5:
         sys.exit('Usage: %s pdml-file-name trace-file-display-name broker-ports displayXferCorrelation' % sys.argv[0])
+
+    global global_highlighted_errors
+    global global_tcp_expert_notices
+    global global_dispositions_accepted
+    global global_dispositions_rejected
+    global global_dispositions_released
+    global global_dispositions_modified
+    global global_dispositions_no_delivery_state
 
     arg_pdml_file    = sys.argv[1]
     arg_display_name = sys.argv[2]
@@ -1059,6 +1113,11 @@ Generated from PDML on <b>'''
     print "<br><button onclick=\"javascript:page_view_collapse()\">Default page view</button>"
     print "<button onclick=\"javascript:page_view_expand()\">Expand-all page view</button>"
 
+    # error/warning statistics
+    print "<br>"
+    print "<h3>Link to analysis statistics.</h3>"
+    print "<a href=\"#analysisStats\">View post-run analysis statistics</a>"
+
     print "<h3>Show/Hide frames per connection</h3>"
     print "<button onclick=\"javascript:select_all()\">Select All</button>"
     print "<button onclick=\"javascript:deselect_all()\">Deselect All</button>"
@@ -1077,7 +1136,7 @@ Generated from PDML on <b>'''
         f_id = frame_id(packet) # f123
         f_idc = f_id + "c"      # f123c - frame's contents
 
-        # Flag tcp retransmits
+        # Flag tcp expert notices
         tcp_message = ""
         try:
             tcp_proto = packet.find("./proto[@name='tcp']")
@@ -1085,8 +1144,8 @@ Generated from PDML on <b>'''
             tcp_a_flags = tcp_analysis.find("./field[@name='tcp.analysis.flags']")
             ws_expert = tcp_a_flags.find("./field[@name='_ws.expert']")
             expert_text = ws_expert.get("showname")
-            if "(suspected) retransmission" in expert_text:
-                tcp_message = "<span style=\"background-color:orange\">Suspected TCP retransmission</span>"
+            tcp_message = "<span style=\"background-color:orange\">%s</span>" % expert_text
+            global_tcp_expert_notices += 1
         except:
             pass
 
@@ -1183,6 +1242,23 @@ Generated from PDML on <b>'''
 
         print "</div>"                                                         # end level:2
         print "</div>"                                                         # end level:1
+
+    # post run analysis counts.
+    print "<br><h3><a name=\"analysisStats\">Post-run Analysis Statistics</a></h3>"
+    print "<TABLE border=\"1\" summary=\"This table shows counts of interesting or anomalous things during processing.\">"
+    print "<CAPTION><EM>Analysis Statistics</EM></CAPTION>"
+    print "<TR>"
+    print "<TH>Count"
+    print "<TH>Description"
+    print "</TR>"
+    print "<TR><TD><span style=\"background-color:orange\">%d</span><TD>Wireshark TCP Expert Info" % (global_tcp_expert_notices)
+    print "<TR><TD><span style=\"background-color:yellow\">%d</span><TD>AMQP In-Band Detach/End/Close Errors" % (global_highlighted_errors / 2)
+    print "<TR><TD>%d<TD>AMQP Disposition state Accepted" % (global_dispositions_accepted / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Rejected" % (global_dispositions_rejected / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Released" % (global_dispositions_released / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_dispositions_modified / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_dispositions_no_delivery_state / 2)
+    print "</TABLE>"
 
     # shortened names, if any
     short_link_names.htmlDump()
