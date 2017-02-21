@@ -80,51 +80,96 @@ import xml.etree.ElementTree as ET
 import time
 import os
 
-#
-#
 def amqp_port_str():
+    '''
+    :return: string value of AMQP default port
+    '''
     return "5672"
 
 def amqp_port_int():
+    '''
+    :return: integer value of AMQP default port
+    '''
     return int(amqp_port_str())
 
 #
-# Various web symbols
+# Various web symbols and canned strings
 #
 def nbsp():
+    '''
+    :return: HTML Non-breaking space
+    '''
     return "&#160;"
 
 def shaded_background_begin():
+    '''
+    :return: HTML leading for shaded span
+    '''
     return "<span style=\"background-color:#e0e0e0\">"
 
 def shaded_background_end():
+    '''
+    :return: HTML trailing for shaded span
+    '''
     return "</span>"
 
 def l_arrow():
+    '''
+    :return: Text left arrow (HTML arrow is ugly)
+    '''
     return "<-"
 
 def r_arrow():
+    '''
+    :return: Text right arror
+    '''
     return "->"
 
 def l_arrow_spaced():
+    '''
+    :return: Spaced text left arrow
+    '''
     return nbsp() + l_arrow() + nbsp()
 
 def r_arrow_spaced():
+    '''
+    :return: Spaced text right arrow
+    '''
     return nbsp() + r_arrow() + nbsp()
 
 def l_arrow_str():
+    '''
+    :return: Spaced left arrow with a space for visual direction clue
+    '''
     return l_arrow_spaced() + nbsp()
 
 def r_arrow_str():
+    '''
+    :return: Spaced right arrow with a space for visual direction clue
+    '''
     return nbsp() + r_arrow_spaced()
 
 def lozenge():
+    '''
+    :return: HTML document lozenge character
+    '''
     return "&#9674;"
 
 def double_lozenge():
+    '''
+    :return: two HTML document lozenge characters
+    '''
     return lozenge() + lozenge()
 
 def leading(level):
+    '''
+    Calculate some leading space based on indent level.
+    There is no magic about these indents. They just have to look nice.
+    Only indent so far. As of Feb 2017 only five level are required.
+    @type level: int
+    :param level: desired indent
+    :return: a string of Non-breaking spaces
+    '''
     sizes = [3, 8, 13, 18, 23]
     if level < len(sizes):
         return nbsp() * sizes[level]
@@ -134,13 +179,28 @@ def leading(level):
 # font color
 color_list = ["black", "red", "blue", "green", "purple", "darkblue", "blueviolet", "darkred", "darkgreen"]
 def color_of(index):
+    '''
+    Return an HTML color name to differentiate various display text elements.
+    If the index is bigger than the table then wrap around and use colors again.
+    @type index: int
+    :param index: some qualifier about the item being displayed
+    :return: a string naming the HTML color
+    '''
     i = int(index)
     return color_list[i % len(color_list)]
 
 #
+# TODO: make bg_color a class
 # bg color
 bg_color_list = ["#ffffff", "#e0e0e0", "#ffccff", "#99FFFF", "#ffffcc"]
 def bg_color_of(index):
+    '''
+    Return an HTML color name to differentiate various display background elements.
+    If the index is bigger than the table then wrap around and use colors again.
+    @type index: int
+    :param index: some qualifier about the item being displayed
+    :return: a string naming the HTML color
+    '''
     i = int(index)
     return bg_color_list[i % len(bg_color_list)]
 #
@@ -148,12 +208,20 @@ def bg_color_of(index):
 pattern_bg_color_list = []
 pattern_bg_color_map = {}
 def colorize_bg(pattern):
+    '''
+    When displaying a [channel,handle] string colorize the background.
+    Memorize and reuse color patterns.
+    @type pattern: str`
+    :param pattern: the string being colorized
+    :return: HTML text string with colorized background span
+    '''
     if pattern not in pattern_bg_color_list:
         pattern_bg_color_list.append(pattern)
         pattern_bg_color_map[pattern] = bg_color_of(pattern_bg_color_list.index(pattern))
     return "<span style=\"background-color:%s\">%s</span>" % (pattern_bg_color_map[pattern], pattern)
 
 #
+# TODO: Move global counts into a class
 #
 global_highlighted_errors = 0
 global_tcp_expert_notices = 0
@@ -166,6 +234,12 @@ global_dispositions_no_delivery_state = 0
 #
 # colorize a directive with an error indication
 def colorize_performative_error(proto, res):
+    '''
+    Colorize and count AMQP performatives with errors
+    :param proto: XML element tree type proto, name = amqp
+    :param res: PerformativeInfo result variable, set only if error
+    :return: if error detected then highlight given res.name value
+    '''
     global global_highlighted_errors
     args        = proto.find("./field[@name='amqp.method.arguments']")
     error       = args.find("./field[@name='amqp.performative.arguments.error']")
@@ -179,6 +253,12 @@ def colorize_performative_error(proto, res):
 # colorize a disposition directive that does not have deliver-state.accepted
 # TODO: choices are: absent, accepted, rejected, released, modified
 def colorize_dispositions_not_accepted(proto, res):
+    '''
+    Colorize and count AMQP dispositions not 'accepted'
+    :param proto: XML element tree type proto, name = amqp
+    :param res: PerformativeInfo result variable, set only if error
+    :return: if condition detected then highlight given res.name value
+    '''
     global global_dispositions_accepted
     global global_dispositions_rejected
     global global_dispositions_released
@@ -211,6 +291,12 @@ def colorize_dispositions_not_accepted(proto, res):
 #
 # Given a hex ascii string, return printable string w/o control codes
 def dehexify_no_control_chars(valuetext):
+    '''
+    Return a printable string from a blob of hex characters.
+    Non printable ascii control chars or chars >= 127 are printed as '.'.
+    :param valuetext:
+    :return:
+    '''
     tmp = valuetext.decode("hex")
     res = ""
     for ch in tmp:
@@ -232,6 +318,9 @@ class ExitStatus(Exception):
 #
 #
 class PerformativeInfo():
+    '''
+    Holds facts about an XML proto tree item from a PDML file
+    '''
     def __init__(self):
         self.web_show_str = ""
         self.name = ""
@@ -273,19 +362,29 @@ class PerformativeInfo():
                 (self.name, colorize_bg(self.channel_handle), self.transfer_id, transfer_last.transfer_id))
 
 #
-# Name shortener.
-# The short name for display is "name_" + index(longName)
-# Embellish the display name with an html popup
-# Link and endpoint names are tracked separately
-# 
+#
 class ShortNames():
+    '''
+    Name shortener.
+    The short name for display is "name_" + index(longName)
+    Embellish the display name with an html popup
+    Link and endpoint names, and data are tracked separately
+    Names longer than threshold are shortened
+    Each class has a prefix used when the table is dumped as HTML
+    '''
     def __init__(self, prefixText):
         self.longnames = []
         self.prefix = prefixText
         self.threshold = 25
 
     def translate(self, lname):
-        # add all names, even if not translated
+        '''
+        Translate a long name into a short name, maybe.
+        Memorize all names, translated or not
+        :param lname: the name
+        :return: If shortened HTML string of shortened name with popup containing long name else
+        not-so-long name.
+        '''
         idx = 0
         try:
             idx = self.longnames.index(lname)
@@ -298,6 +397,10 @@ class ShortNames():
         return "<span title=\"" + lname + "\">" + self.prefix + "_" + str(idx) + "</span>"
 
     def htmlDump(self):
+        '''
+        Print the name table as an unnumbered list to stdout
+        :return: null
+        '''
         if len(self.longnames) > 0:
             print "<h3>" + self.prefix + " Name Index</h3>"
             print "<ul>"
@@ -476,18 +579,38 @@ def connection_id(packet):
     return tmp
 
 def frame_num_str(packet):
+    '''
+    Given a packet, return the frame number as a string
+    :param packet:
+    :return:
+    '''
     return (packet
             .find("./proto[@name='frame']")
             .find("./field[@name='frame.number']")
             .get("show"))
 
 def frame_num(packet):
+    '''
+    Given a packet, return the frame number as an integer
+    :param packet:
+    :return:
+    '''
     return int(frame_num_str(packet))
 
 def frame_id(packet):
+    '''
+    Given a packet, return the frame identifier string
+    :param packet:
+    :return:
+    '''
     return "f" + frame_num_str(packet)
 
 def frame_time_relative(packet):
+    '''
+    Given a packet, return the frame relative time as a string
+    :param packet:
+    :return:
+    '''
     result = "0.0"
     proto_frame = packet.find("./proto[@name='frame']")
     if proto_frame is not None:
@@ -497,7 +620,10 @@ def frame_time_relative(packet):
     return result
 
 def field_show_value_or_null(field):
-    '''hassle with displaying a decent null'''
+    '''
+    hassle with displaying a decent null as a string
+    If the field is not null then return the 'show' value string
+    '''
     if field is None:
         return "null"
     tmp = field.get('value')
@@ -533,7 +659,10 @@ def safe_field_attr_extract(object, fieldname, attrname, default):
     return res
 
 def amqp_other_decode(proto):
-    '''Given a proto that isn't a nice, clean performative, return a parsed summary'''
+    '''
+    Given a proto that isn't a nice, clean performative,
+    return a parsed summary PerformativeInfo object
+    '''
     res = PerformativeInfo()
 
     f_aip = proto.find("./field[@name='amqp.init.protocol']")
