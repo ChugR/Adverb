@@ -133,7 +133,103 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
         pi = adverb.amqp_decode(proto)
-        print ("pi: %s" % pi)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+
+        proto = get_amqp_proto(self.packets[packet_i], 2)
+        self.assertIsNotNone(proto, ("Could not find amqp proto 2 in packet %s" % packet_i))
+        self.assertTrue('init' == pi.name, 'Expected init')
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        self.assertTrue('open' == pi.name, 'Expected open')
+
+    def test_19_flow(self):
+        packet_i = 17
+        proto = get_amqp_proto(self.packets[packet_i])
+        self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        # print ("pi: %s" % pi)
+        self.assertTrue('flow' == pi.name, 'Expected flow')
+        self.assertTrue('0' == pi.channel, 'Expected channel 0')
+        self.assertTrue('0' == pi.handle, 'Expected handle 0')
+        self.assertTrue('[0,0]' == pi.channel_handle, 'Expected channel,handle 0,0')
+        self.assertTrue('0' == pi.flow_deliverycnt, 'Expected 0 deliverycnt')
+        self.assertTrue('200' == pi.flow_linkcredit, 'Expected 200 credits')
+        self.assertTrue('(0,200)' == pi.flow_cnt_credit, 'Expected 0,200 count,credit')
+
+    def test_20_client_transfer(self):
+        packet_i = 6
+        proto = get_amqp_proto(self.packets[packet_i])
+        self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        self.assertTrue('transfer' == pi.name, 'Expected transfer')
+        self.assertTrue('0' == pi.channel, 'Expected channel 0')
+        self.assertTrue('0' == pi.handle, 'Expected handle 0')
+        self.assertTrue('[0,0]' == pi.channel_handle, 'Expected channel,handle 0,0')
+
+    def test_21_disposition(self):
+        packet_i = 7
+        proto = get_amqp_proto(self.packets[packet_i])
+        self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        self.assertTrue('disposition' == pi.name, 'Expected disposition')
+        self.assertTrue('0' == pi.channel, 'Expected channel 0')
+        self.assertTrue('receiver' == pi.role, 'Expected role receiver')
+        self.assertTrue('0' == pi.first, 'Expected first : 0')
+        self.assertTrue('0' == pi.last, 'Expected last : 0')
+
+    def test_22_detach(self):
+        packet_i = 8
+        proto = get_amqp_proto(self.packets[packet_i])
+        self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        self.assertTrue('detach' == pi.name, 'Expected detach')
+        self.assertTrue('0' == pi.channel, 'Expected channel 0')
+        self.assertTrue('0' == pi.handle, 'Expected handle 0')
+        self.assertTrue('[0,0]' == pi.channel_handle, 'Expected channel,handle 0,0')
+
+    def test_23_end(self):
+        packet_i = 23 # packet 23 holds performative 23? Hmmm.
+        proto = get_amqp_proto(self.packets[packet_i])
+        self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        self.assertTrue('end' == pi.name, 'Expected end')
+        self.assertTrue('0' == pi.channel, 'Expected channel 0')
+
+    def test_24_close(self):
+        packet_i = 24
+        proto = get_amqp_proto(self.packets[packet_i])
+        self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
+
+        pi = adverb.amqp_decode(proto)
+        self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+        self.assertTrue('close' == pi.name, 'Expected close')
+        self.assertTrue('0' == pi.channel, 'Expected channel 0')
+
+    def debug_datafile_test_dump(self):
+        '''
+        Debug me. Rename this function to test_dump to see a dump
+        of all the performatives in the test file.
+        :return:
+        '''
+        for packet_i in range(25):
+            proto_i = 1
+            proto = get_amqp_proto(self.packets[packet_i], proto_i)
+            if not proto is None:
+                pi = adverb.amqp_decode(proto)
+                self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
+                print ("\nPacket %d, proto %d\n%s" %(packet_i, proto_i, pi))
+
 
 if __name__ == "__main__":
     unittest.main()
