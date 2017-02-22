@@ -342,6 +342,32 @@ class PerformativeInfo():
         self.last = ""             # undecorated number - '20'
         self.transfer_data = ""    # dehexified transfer data value
 
+    def __repr__(self):
+        return self._representation()
+
+    def _representation(self):
+        all_lines = []
+        all_lines.append("web_show_str : '%s'" % self.web_show_str)
+        all_lines.append("name : '%s'" % self.name)
+        all_lines.append("channel : '%s'" % self.channel)
+        all_lines.append("handle : '%s'" % self.handle)
+        all_lines.append("delivery_id : '%s'" % self.delivery_id)
+        all_lines.append("delivery_tag : '%s'" % self.delivery_tag)
+        all_lines.append("remote : '%s'" % self.remote)
+        all_lines.append("channel_handle : '%s'" % self.channel_handle)
+        all_lines.append("channel_remote : '%s'" % self.channel_remote)
+        all_lines.append("flow_deliverycnt : '%s'" % self.flow_deliverycnt)
+        all_lines.append("flow_linkcredit : '%s'" % self.flow_linkcredit)
+        all_lines.append("flow_cnt_credit : '%s'" % self.flow_cnt_credit)
+        all_lines.append("transfer_id : '%s'" % self.transfer_id)
+        all_lines.append("role : '%s'" % self.role)
+        all_lines.append("source : '%s'" % self.source)
+        all_lines.append("target : '%s'" % self.target)
+        all_lines.append("first : '%s'" % self.first)
+        all_lines.append("last : '%s'" % self.last)
+        all_lines.append("transfer_data : '%s'" % self.transfer_data)
+        return ('\n'.join(all_lines))
+
     def isConsecutiveTransfer(self, candidate):
         #assert self.name == "transfer"
         #assert candidate.name == "transfer"
