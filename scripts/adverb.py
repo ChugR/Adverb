@@ -232,6 +232,21 @@ global_dispositions_modified = 0
 global_dispositions_no_delivery_state = 0
 
 #
+# Detect and return colorized tcp expert warning
+def detect_tcp_expert_warning(packet):
+    tcp_message = ""
+    try:
+        tcp_proto = packet.find("./proto[@name='tcp']")
+        tcp_analysis = tcp_proto.find("./field[@name='tcp.analysis']")
+        tcp_a_flags = tcp_analysis.find("./field[@name='tcp.analysis.flags']")
+        ws_expert = tcp_a_flags.find("./field[@name='_ws.expert']")
+        expert_text = ws_expert.get("showname")
+        tcp_message = "<span style=\"background-color:orange\">%s</span>" % expert_text
+    except:
+        pass
+    return tcp_message
+
+#
 # colorize a directive with an error indication
 def colorize_performative_error(proto, res):
     '''
@@ -1297,17 +1312,9 @@ Generated from PDML on <b>'''
         f_idc = f_id + "c"      # f123c - frame's contents
 
         # Flag tcp expert notices
-        tcp_message = ""
-        try:
-            tcp_proto = packet.find("./proto[@name='tcp']")
-            tcp_analysis = tcp_proto.find("./field[@name='tcp.analysis']")
-            tcp_a_flags = tcp_analysis.find("./field[@name='tcp.analysis.flags']")
-            ws_expert = tcp_a_flags.find("./field[@name='_ws.expert']")
-            expert_text = ws_expert.get("showname")
-            tcp_message = "<span style=\"background-color:orange\">%s</span>" % expert_text
+        tcp_message = detect_tcp_expert_warning(packet)
+        if tcp_message != "":
             global_tcp_expert_notices += 1
-        except:
-            pass
 
         # compute performative list for Frame line
         # collapse consecutive transfers into a transfer range for display
