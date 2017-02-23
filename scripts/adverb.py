@@ -221,15 +221,18 @@ def colorize_bg(pattern):
     return "<span style=\"background-color:%s\">%s</span>" % (pattern_bg_color_map[pattern], pattern)
 
 #
-# TODO: Move global counts into a class
+# Globals
 #
-global_highlighted_errors = 0
-global_tcp_expert_notices = 0
-global_dispositions_accepted = 0
-global_dispositions_rejected = 0
-global_dispositions_released = 0
-global_dispositions_modified = 0
-global_dispositions_no_delivery_state = 0
+class GlobalVars():
+    def __init__(self):
+        self.highlighted_errors = 0
+        self.tcp_expert_notices = 0
+        self.dispositions_accepted = 0
+        self.dispositions_rejected = 0
+        self.dispositions_released = 0
+        self.dispositions_modified = 0
+        self.dispositions_no_delivery_state = 0
+        self.broker_ports_list = []
 
 #
 # Detect and return colorized tcp expert warning
@@ -248,57 +251,51 @@ def detect_tcp_expert_warning(packet):
 
 #
 # colorize a directive with an error indication
-def colorize_performative_error(proto, res):
+def colorize_performative_error(proto, res, global_vars):
     '''
     Colorize and count AMQP performatives with errors
     :param proto: XML element tree type proto, name = amqp
     :param res: PerformativeInfo result variable, set only if error
     :return: if error detected then highlight given res.name value
     '''
-    global global_highlighted_errors
     args        = proto.find("./field[@name='amqp.method.arguments']")
     error       = args.find("./field[@name='amqp.performative.arguments.error']")
     if not error is None:
         e_size      = error.get("size")
         if int(e_size) > 1:
             res.name = "<span style=\"background-color:yellow\">" + res.name + "</span>"
-            global_highlighted_errors += 1
+            global_vars.highlighted_errors += 1
 
 #
 # colorize a disposition directive that does not have deliver-state.accepted
 # TODO: choices are: absent, accepted, rejected, released, modified
-def colorize_dispositions_not_accepted(proto, res):
+def colorize_dispositions_not_accepted(proto, res, global_vars):
     '''
     Colorize and count AMQP dispositions not 'accepted'
     :param proto: XML element tree type proto, name = amqp
     :param res: PerformativeInfo result variable, set only if error
     :return: if condition detected then highlight given res.name value
     '''
-    global global_dispositions_accepted
-    global global_dispositions_rejected
-    global global_dispositions_released
-    global global_dispositions_modified
-    global global_dispositions_no_delivery_state
     colorize = False
     args  = proto.find("./field[@name='amqp.method.arguments']")
     state = args.find("./field[@name='amqp.delivery-state.accepted']")
     if not state is None:
-        global_dispositions_accepted += 1
+        global_vars.dispositions_accepted += 1
     else:
         colorize = True
         state = args.find("./field[@name='amqp.delivery-state.rejected']")
         if not state is None:
-            global_dispositions_rejected += 1
+            global_vars.dispositions_rejected += 1
         else:
             state = args.find("./field[@name='amqp.delivery-state.released']")
             if not state is None:
-                global_dispositions_released += 1
+                global_vars.dispositions_released += 1
             else:
                 state = args.find("./field[@name='amqp.delivery-state.modified']")
                 if not state is None:
-                    global_dispositions_modified += 1
+                    global_vars.dispositions_modified += 1
                 else:
-                    global_dispositions_no_delivery_state += 1
+                    global_vars.dispositions_no_delivery_state += 1
         if colorize:
             res.name = "<span style=\"background-color:gold\">" + res.name + "</span>"
 
@@ -320,9 +317,6 @@ def dehexify_no_control_chars(valuetext):
         res += ch
     return res
 
-#
-#
-global_broker_ports_list = []
 
 #
 #
@@ -455,7 +449,7 @@ short_data_names = ShortNames("message_data")
 
 #
 #
-def process_port_args(ostring, res_list):
+def process_port_args(ostring, global_vars):
     """Given the string of broker ports, return an expanded list"""
     port_args = ostring.strip().split(" ")
     for port_arg in port_args:
@@ -464,27 +458,27 @@ def process_port_args(ostring, res_list):
             start = int(seq[0])
             count = int(seq[1])
             for x in range (0, count):
-                res_list.append(str(start + x))
+                global_vars.broker_ports_list.append(str(start + x))
         else:
             rng = port_arg.strip().split("-")
             if len(rng) == 2:
                 current = int(rng[0])
                 upper   = int(rng[1])
                 while current <= upper:
-                    res_list.append(str(current))
+                    global_vars.broker_ports_list.append(str(current))
                     current += 1
             else:
                 if len(port_arg) > 0:
-                    res_list.append(port_arg)
+                    global_vars.broker_ports_list.append(port_arg)
 
 #
 #
-def is_broker_a(a, b, ports_list):
+def is_broker_a(a, b, global_vars):
     """Given two ports guess if 'a' is the broker port"""
     a_is_broker = True
-    if a == amqp_port_int() or str(a) in ports_list:
+    if a == amqp_port_int() or str(a) in global_vars.broker_ports_list:
         a_is_broker = True
-    elif b == amqp_port_int() or str(b) in ports_list:
+    elif b == amqp_port_int() or str(b) in global_vars.broker_ports_list:
         a_is_broker = False
     elif a < b:
         a_is_broker = True
@@ -505,7 +499,7 @@ def connection_dst_is_broker(packet):
     tcp_dst = field_tcp_dst.get("show")
     s_port = int(tcp_src)
     d_port = int(tcp_dst)
-    return is_broker_a(d_port, s_port, global_broker_ports_list)
+    return is_broker_a(d_port, s_port, global_vars)
     
 #
 #
@@ -559,7 +553,7 @@ def connection_dst_string(packet):
 
 #
 #
-def connection_show_util(packet, sep_broker_r, sep_broker_l, bg_start="", bg_end=""):
+def connection_show_util(packet, sep_broker_r, sep_broker_l, global_vars, bg_start="", bg_end=""):
     """Given a packet, return the connection to be displayed/stored"""
     assert packet is not None, "connection_show_util receives null packet"
     proto_tcp = packet.find("./proto[@name='tcp']")
@@ -588,7 +582,7 @@ def connection_show_util(packet, sep_broker_r, sep_broker_l, bg_start="", bg_end
     dst_addr = "%s:%s" % (ip_dst, tcp_dst)
 
     result = ""
-    if is_broker_a(d_port, s_port, global_broker_ports_list):
+    if is_broker_a(d_port, s_port, global_vars):
         result = "%s%s%s%s%s%s" % (bg_start, src_addr, sep_broker_r, bg_end, dst_addr, sep_broker_r)
     else:
         result = "%s%s%s%s%s%s" % (dst_addr, bg_start, sep_broker_l, src_addr, bg_end, sep_broker_l)
@@ -598,21 +592,21 @@ def connection_show_util(packet, sep_broker_r, sep_broker_l, bg_start="", bg_end
 
 #
 #
-def connection_name_for_web(packet):
+def connection_name_for_web(packet, global_vars):
     """Given a packet, return the display connection name client-broker for html"""
-    return connection_show_util(packet, r_arrow_str(), l_arrow_str(), shaded_background_begin(), shaded_background_end())
+    return connection_show_util(packet, r_arrow_str(), l_arrow_str(), global_vars, shaded_background_begin(), shaded_background_end())
 
 #
 #
-def connection_name(packet):
+def connection_name(packet, global_vars):
     """Given a packet, return the human readable name"""
-    return connection_show_util(packet, "-", "-")
+    return connection_show_util(packet, "-", "-", global_vars)
 
 #
 #
-def connection_id(packet):
+def connection_id(packet, global_vars):
     """Given a packet, return the internal connection name (no special chars)"""
-    tmp =  connection_show_util(packet, "_", "_")
+    tmp =  connection_show_util(packet, "_", "_", global_vars)
     tmp = tmp.replace('.', '_')
     tmp = tmp.replace(':', '_')
     tmp = tmp.replace('[', '_')
@@ -766,7 +760,7 @@ def amqp_other_decode(proto):
     res.web_show_str = "<strong>???</strong> Undecoded frame"
     return res
 
-def amqp_decode(proto, arg_display_xfer=False):
+def amqp_decode(proto, global_vars, arg_display_xfer=False):
     assert proto is not None, "amqp_decode receives null proto"
 
     '''Given an amqp proto, return parsed PerformativeInfo summary'''
@@ -882,7 +876,7 @@ def amqp_decode(proto, arg_display_xfer=False):
         res.first   = extract_name(first)
         res.last    = extract_name(last)
         res.name    = "disposition"
-        colorize_dispositions_not_accepted(proto, res)
+        colorize_dispositions_not_accepted(proto, res, global_vars)
         res.role    = extract_name(role)
         res.web_show_str  = ("<strong>%s</strong>  [%s] (%s %s-%s)" % 
                              (res.name, res.channel, res.role, res.first, res.last))
@@ -894,7 +888,7 @@ def amqp_decode(proto, arg_display_xfer=False):
         handle      = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
         res.handle         = extract_name(handle)
         res.name           = "detach"
-        colorize_performative_error(proto, res)
+        colorize_performative_error(proto, res, global_vars)
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
         res.web_show_str   = "<strong>%s</strong> %s" % (res.name, colorize_bg(res.channel_handle))
     
@@ -902,14 +896,14 @@ def amqp_decode(proto, arg_display_xfer=False):
         # Performative: end [channel] 
         res.channel      = proto.find("./field[@name='amqp.channel']").get("show")
         res.name         = "end"
-        colorize_performative_error(proto, res)
+        colorize_performative_error(proto, res, global_vars)
         res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
 
     elif perf == '18':
         # Performative: close [0] always channel 0
         res.channel      = "0"
         res.name         = "close"
-        colorize_performative_error(proto, res)
+        colorize_performative_error(proto, res, global_vars)
         res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
 
     else:
@@ -980,22 +974,18 @@ def show_flow_list(title, flow_list, label):
 #
 #
 def main_except(argv):
+    import pdb
+    pdb.set_trace()
     """Given a pdml file name, send the javascript web page to stdout"""
     if len(sys.argv) < 5:
         sys.exit('Usage: %s pdml-file-name trace-file-display-name broker-ports displayXferCorrelation' % sys.argv[0])
-
-    global global_highlighted_errors
-    global global_tcp_expert_notices
-    global global_dispositions_accepted
-    global global_dispositions_rejected
-    global global_dispositions_released
-    global global_dispositions_modified
-    global global_dispositions_no_delivery_state
 
     arg_pdml_file    = sys.argv[1]
     arg_display_name = sys.argv[2]
     arg_broker_ports = sys.argv[3]
     arg_display_xfer = sys.argv[4] == 'true'
+
+    global_vars = GlobalVars()
 
     #for x in range (0, 5):
     #    print "arg %s: %s<br>" % (x, sys.argv[x])
@@ -1003,7 +993,7 @@ def main_except(argv):
     if not os.path.exists(arg_pdml_file):
         sys.exit('ERROR: pdml file %s was not found!' % arg_pdml_file)
 
-    process_port_args(arg_broker_ports, global_broker_ports_list)
+    process_port_args(arg_broker_ports, global_vars)
 
     #for x in range (0, len(global_broker_ports_list)):
     #    print " port %s = %s<br>" % (x, global_broker_ports_list[x])
@@ -1029,8 +1019,8 @@ def main_except(argv):
             candidate_proto = packet.find("./proto[@name='fake-field-wrapper']")
             if candidate_proto is not None:
                 isProbable = False
-                flow_id = connection_id(packet)
-                flow_id_display = connection_show_util(packet, " - ", " - ")
+                flow_id = connection_id(packet, global_vars)
+                flow_id_display = connection_show_util(packet, " - ", " - ", global_vars)
                 try:
                     data_field = candidate_proto.find("./field[@name='data']")
                     data_value = data_field.get("value")
@@ -1064,8 +1054,8 @@ def main_except(argv):
     conn_frame_count = {}
     color_index = 0
     for packet in amqp_packets:
-        cid = connection_id(packet)
-        cname = connection_name(packet)
+        cid = connection_id(packet, global_vars)
+        cname = connection_name(packet, global_vars)
         if cid not in connection_id_list:
             connection_id_list.append(cid)
             conn_id_to_name_map[cid] = cname
@@ -1081,7 +1071,7 @@ def main_except(argv):
         
     # index the frames by connection
     for packet in amqp_packets:
-        conn_to_frame_map[ connection_id(packet) ].append( frame_id(packet) )
+        conn_to_frame_map[ connection_id(packet, global_vars) ].append( frame_id(packet) )
 
     # create a map of (frame_id, [list of protos])     - level:4
     frame_to_protos_map = {}
@@ -1314,7 +1304,7 @@ Generated from PDML on <b>'''
         # Flag tcp expert notices
         tcp_message = detect_tcp_expert_warning(packet)
         if tcp_message != "":
-            global_tcp_expert_notices += 1
+            global_vars.tcp_expert_notices += 1
 
         # compute performative list for Frame line
         # collapse consecutive transfers into a transfer range for display
@@ -1326,7 +1316,7 @@ Generated from PDML on <b>'''
         protos = packet.findall('proto')
         for proto in protos:
             if proto.get("name") == "amqp":
-                decoded_proto = amqp_decode(proto, False)
+                decoded_proto = amqp_decode(proto, global_vars, False)
                 if decoded_proto.name == "transfer":
                     if transfer_first is None:
                         transfer_first = decoded_proto
@@ -1372,9 +1362,9 @@ Generated from PDML on <b>'''
         print "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (f_idc, lozenge(), nbsp())
         # dobule lozenge shows all frame details
         print "<a href=\"javascript:toggle_frame_details_%s()\">%s%s</a>%s%s" % (f_id, double_lozenge(), nbsp(), frame_time_relative(packet), nbsp())
-        print "<font color=\"%s\">" % conn_id_to_color_map[ connection_id(packet) ]
+        print "<font color=\"%s\">" % conn_id_to_color_map[ connection_id(packet, global_vars) ]
         print "Frame %s" % frame_num(packet)
-        print "%s%s" % (nbsp(), connection_name_for_web(packet))
+        print "%s%s" % (nbsp(), connection_name_for_web(packet, global_vars))
         print "</font>%s%s %s" % (nbsp(), performatives, tcp_message)
 
         # Create a div that holds the frame's contents
@@ -1383,7 +1373,7 @@ Generated from PDML on <b>'''
         proto_index = 0
         for proto in protos:
             if proto.get("name") == "amqp":
-                decoded_proto = amqp_decode(proto, arg_display_xfer)
+                decoded_proto = amqp_decode(proto, global_vars, arg_display_xfer)
                 proto_id = f_idc + str(proto_index) + "d"
                 print ("<div width=\"100%%\" style=\"background-color:#e5e5e5; margin-bottom: 2px\" id=\"%s\">" 
                        % (f_idc + str(proto_index)))                             # begin level:3
@@ -1418,13 +1408,13 @@ Generated from PDML on <b>'''
     print "<TH>Count"
     print "<TH>Description"
     print "</TR>"
-    print "<TR><TD><span style=\"background-color:orange\">%d</span><TD>Wireshark TCP Expert Info" % (global_tcp_expert_notices)
-    print "<TR><TD><span style=\"background-color:yellow\">%d</span><TD>AMQP In-Band Detach/End/Close Errors" % (global_highlighted_errors / 2)
-    print "<TR><TD>%d<TD>AMQP Disposition state Accepted" % (global_dispositions_accepted / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Rejected" % (global_dispositions_rejected / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Released" % (global_dispositions_released / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_dispositions_modified / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_dispositions_no_delivery_state / 2)
+    print "<TR><TD><span style=\"background-color:orange\">%d</span><TD>Wireshark TCP Expert Info" % (global_vars.tcp_expert_notices)
+    print "<TR><TD><span style=\"background-color:yellow\">%d</span><TD>AMQP In-Band Detach/End/Close Errors" % (global_vars.highlighted_errors / 2)
+    print "<TR><TD>%d<TD>AMQP Disposition state Accepted" % (global_vars.dispositions_accepted / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Rejected" % (global_vars.dispositions_rejected / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Released" % (global_vars.dispositions_released / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_vars.dispositions_modified / 2)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_vars.dispositions_no_delivery_state / 2)
     print "</TABLE>"
 
     # shortened names, if any

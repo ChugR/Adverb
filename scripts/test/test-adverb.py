@@ -41,6 +41,7 @@ sys.path.append(os.path.dirname(cwd))
 import adverb
 from adverb import ExitStatus as ExitStatus
 from adverb import PerformativeInfo as PI
+from adverb import GlobalVars as GlobalVars
 
 def get_amqp_proto(packet, which=1):
     '''
@@ -65,11 +66,13 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         self.tree = ET.parse(os.path.abspath(os.path.join(cwd, "data/t1-amqp.pdml")))
         self.root = self.tree.getroot()
         self.packets = self.root.findall("packet")
+        self.global_vars = GlobalVars()
 
     def tearDown(self):
         self.tree = None
         self.root = None
         self.packets = None
+        self.global_vars = None
 
     def test_00_check_data_file(self):
         self.assertEqual(26, len(self.packets))
@@ -79,7 +82,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto into PerformativeInfo")
         self.assertTrue('init' == pi.name, 'Expected init ')
         self.assertTrue('init' in pi.web_show_str, 'Expected init')
@@ -93,7 +96,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto into PerformativeInfo")
         self.assertTrue('open' == pi.name, 'Expected open')
         self.assertTrue('open' in pi.web_show_str, 'Expected open')
@@ -104,7 +107,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto begin PerformativeInfo")
         self.assertTrue('begin' == pi.name, 'Expected begin')
         self.assertTrue('null' == pi.remote, 'Expected no remote channel')
@@ -116,7 +119,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto attach PerformativeInfo")
         self.assertTrue('attach' == pi.name, 'Expected attach')
         self.assertTrue('attach' in pi.web_show_str, 'Expected begin')
@@ -132,14 +135,14 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
 
         proto = get_amqp_proto(self.packets[packet_i], 2)
         self.assertIsNotNone(proto, ("Could not find amqp proto 2 in packet %s" % packet_i))
         self.assertTrue('init' == pi.name, 'Expected init')
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         self.assertTrue('open' == pi.name, 'Expected open')
 
@@ -148,7 +151,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         # print ("pi: %s" % pi)
         self.assertTrue('flow' == pi.name, 'Expected flow')
@@ -164,7 +167,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         self.assertTrue('transfer' == pi.name, 'Expected transfer')
         self.assertTrue('0' == pi.channel, 'Expected channel 0')
@@ -176,7 +179,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         self.assertTrue('disposition' == pi.name, 'Expected disposition')
         self.assertTrue('0' == pi.channel, 'Expected channel 0')
@@ -189,7 +192,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         self.assertTrue('detach' == pi.name, 'Expected detach')
         self.assertTrue('0' == pi.channel, 'Expected channel 0')
@@ -201,7 +204,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         self.assertTrue('end' == pi.name, 'Expected end')
         self.assertTrue('0' == pi.channel, 'Expected channel 0')
@@ -211,7 +214,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
         proto = get_amqp_proto(self.packets[packet_i])
         self.assertIsNotNone(proto, ("Could not find amqp proto in packet %s" % packet_i))
 
-        pi = adverb.amqp_decode(proto)
+        pi = adverb.amqp_decode(proto, self.global_vars)
         self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
         self.assertTrue('close' == pi.name, 'Expected close')
         self.assertTrue('0' == pi.channel, 'Expected channel 0')
@@ -226,7 +229,7 @@ class AmqpProtoDecodeTest(unittest.TestCase):
             proto_i = 1
             proto = get_amqp_proto(self.packets[packet_i], proto_i)
             if not proto is None:
-                pi = adverb.amqp_decode(proto)
+                pi = adverb.amqp_decode(proto, self.global_vars)
                 self.assertIsNotNone(pi, "Could not decode proto init PerformativeInfo")
                 print ("\nPacket %d, proto %d\n%s" %(packet_i, proto_i, pi))
 
