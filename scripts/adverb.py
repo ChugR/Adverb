@@ -165,15 +165,15 @@ def leading(level):
     '''
     Calculate some leading space based on indent level.
     There is no magic about these indents. They just have to look nice.
-    Only indent so far. As of Feb 2017 only five level are required.
+    Only indent so far.
     @type level: int
     :param level: desired indent
     :return: a string of Non-breaking spaces
     '''
-    sizes = [3, 8, 13, 18, 23]
+    sizes = [3, 8, 13, 18, 23, 27, 31, 35, 39]
     if level < len(sizes):
         return nbsp() * sizes[level]
-    return nbsp() * 23
+    return nbsp() * 39
 
 #
 # font color
@@ -396,6 +396,81 @@ class PerformativeInfo():
             return ("<strong>%s</strong>  %s (%s..%s)" % 
                 (self.name, colorize_bg(self.channel_handle), self.transfer_id, transfer_last.transfer_id))
 
+class ConnectionDetail():
+    '''
+    Holds facts about sessions over the connections lifetime
+    '''
+    def __init__(self, id):
+        # id in form 'clienthost_port_serverhost_port'
+        self.id = id
+
+        # epoch number differentiates items that otherwise have same identifiers.
+        # sessions, for example
+        self.epoch = 0
+
+        # session_list holds SessionDetail records
+        # Sessions for a connection are identified by the client-to-broker and
+        # broker-to-client channel number pair.
+        # There may be many sessions all using the same channel pairs.
+        # This list holds all of them.
+        self.session_list = []
+
+        # session_map holds currently active session as indexed by channel
+        # this map indexed by the channel refers to the current item in the session_list
+        self.client_to_broker_chan_map = {}
+        self.broker_to_client_chan_map = {}
+
+    def FindSession(self, channel, dst_is_broker):
+        '''
+        Find the current session by channel number
+        qualify lookup based on packet direction
+        :param channel: the performative channel
+        :param dst_is_broker: packet direction
+        :return: the session or None
+        '''
+        result = None
+        if dst_is_broker:
+            if channel in self.client_to_broker_chan_map:
+                result = self.client_to_broker_chan_map[channel]
+        else:
+            if channel in self.broker_to_client_chan_map:
+                result = self.broker_to_client_chan_map[channel]
+        return result
+
+    def GetEpoch(self):
+        self.epoch += 1
+        return self.epoch
+
+    def EndClientChannel(self, channel):
+        # take existing session out of connection chan map
+        if channel in self.client_to_broker_chan_map:
+            del self.client_to_broker_chan_map[channel]
+
+    def EndBrokerChannel(self, channel):
+        # take existing session out of connection chan map
+        if channel in self.broker_to_client_chan_map:
+            del self.broker_to_client_chan_map[channel]
+
+class SessionDetail():
+    '''
+    Holds facts about a session
+    '''
+    def __init__(self, conn_id, conn_epoch):
+        self.conn_id = conn_id
+        self.conn_epoch = conn_epoch
+
+        self.client_chan = -1
+        self.broker_chan = -1
+
+        self.originated_by_client = True
+
+        # epoch number differentiates items that otherwise have same identifiers.
+        # links for example
+        self.epoch = 1
+
+        self.frame_list = []
+        self.proto_list = []
+
 #
 #
 class ShortNames():
@@ -488,7 +563,22 @@ def is_broker_a(a, b, global_vars):
 
 #
 #
-def connection_dst_is_broker(packet):
+def connection_is_broker_dst(packet, global_vars):
+    """Given a packet, sense if broker is packet destination"""
+    assert packet is not None, "connection_is_broker_dst receives null packet"
+    proto_tcp = packet.find("./proto[@name='tcp']")
+    assert proto_tcp is not None, "connection_show_util cannot find tcp proto"
+    field_tcp_src = proto_tcp.find("./field[@name='tcp.srcport']")
+    field_tcp_dst = proto_tcp.find("./field[@name='tcp.dstport']")
+    tcp_src = field_tcp_src.get("show")
+    tcp_dst = field_tcp_dst.get("show")
+    s_port = int(tcp_src)
+    d_port = int(tcp_dst)
+    return is_broker_a(d_port, s_port, global_vars)
+
+#
+#
+def connection_dst_is_broker(packet, global_vars):
     """Given a packet, return true if destination is the broker"""
     assert packet is not None, "connection_show_util receives null packet"
     proto_tcp = packet.find("./proto[@name='tcp']")
@@ -644,7 +734,7 @@ def frame_time_relative(packet):
     '''
     Given a packet, return the frame relative time as a string
     :param packet:
-    :return:
+    :return: the time in uS as a string, or '0.0' if not found
     '''
     result = "0.0"
     proto_frame = packet.find("./proto[@name='frame']")
@@ -666,6 +756,42 @@ def field_show_value_or_null(field):
         return "null"
     else:
         return field.get('show')
+
+def get_performative_name(proto):
+    '''
+    Given a proto, return the performative name
+    :param proto:
+    :return: performative name or 'none'
+    '''
+    perf_field = proto.find("./field[@name='amqp.performative']")
+    if perf_field is None:
+        # No performative. init frames and amqp0-X stuff
+        return 'none'
+
+    perf = perf_field.get("value")
+    if perf is None:
+        # unusual return path. could assert instead. probably.
+        return 'none'
+
+    if perf == '10':
+        return 'open'
+    elif perf == '11':
+        return 'begin'
+    elif perf == '12':
+        return 'attach'
+    elif perf == '13':
+        return 'flow'
+    elif perf == '14':
+        return 'transfer'
+    elif perf == '15':
+        return 'disposition'
+    elif perf == '16':
+        return 'detach'
+    elif perf == '17':
+        return 'end'
+    elif perf == '18':
+        return 'close'
+    return 'none'
 
 def extract_name(three_words):
     '''Return second word of a string'''
@@ -692,6 +818,111 @@ def safe_field_attr_extract(object, fieldname, attrname, default):
     except:
         pass
     return res
+
+def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
+    '''
+    Follow connections, sessions, and links to discover details
+    :param frames: the amqp packets
+    :param conn_details_map: storage for details
+    :return: None
+    '''
+    for frame in frames:
+        cid = connection_id(frame, global_vars)
+        conn_details = conn_details_map[cid]
+        assert conn_details is not None, "can't find connection details"
+        f_id = frame_id(frame)  # f123
+        f_idc = f_id + "c"  # f123c - frame's contents
+        dst_is_broker = connection_dst_is_broker(frame, global_vars)
+        protos = frame.findall('proto')
+        proto_index = 0
+        for proto in protos:
+            if proto.get("name") == "amqp":
+                proto_id = f_idc + str(proto_index) + "d"
+                proto_index += 1
+                pname = get_performative_name(proto)
+                if pname == 'none' or pname == 'open' or pname == 'close':
+                    # not all protos have a channel and these we don't care about
+                    continue
+
+                channel = proto.find("./field[@name='amqp.channel']").get("show")
+                assert channel is not None and len(channel) > 0, "amqp proto must have a channel"
+                if pname == 'begin':
+                    # session establishment
+                    args = proto.find("./field[@name='amqp.method.arguments']")
+                    remote = args.find("./field[@name='amqp.performative.arguments.remoteChannel']")
+                    remote = field_show_value_or_null(remote)
+                    if remote == 'null':
+                        # Creating a new session from scratch
+                        ns = SessionDetail(cid, conn_details.GetEpoch())
+                        conn_details.session_list.append(ns)
+
+                        if dst_is_broker:
+                            # client is creating a new session
+                            conn_details.EndClientChannel(channel)
+                            conn_details.client_to_broker_chan_map[channel] = ns
+                            ns.client_chan = channel
+                            ns.originated_by_client = True
+                        else:
+                            # broker is creating a new session
+                            conn_details.EndBrokerChannel(channel)
+                            conn_details.broker_to_client_chan_map[channel] = ns
+                            ns.broker_chan = channel
+                            ns.originated_by_client = False
+                    else:
+                        # Second half of session creation. Completes a pending session.
+                        ns = conn_details.FindSession(remote, not dst_is_broker)
+                        if not ns is None:
+                            if dst_is_broker:
+                                # Client is completing session created by broker
+                                ns.client_chan = channel
+                                conn_details.client_to_broker_chan_map[channel] = ns
+                            else:
+                                # Broker is completing session created by client
+                                ns.broker_chan = channel
+                                conn_details.broker_to_client_chan_map[channel] = ns
+                        else:
+                            # peer's channel does not exist. Create a new session and supply both channels
+                            ns = SessionDetail(cid, conn_details.GetEpoch())
+                            if dst_is_broker:
+                                ns.client_chan = channel
+                                ns.broker_chan = remote
+                                conn_details.client_to_broker_chan_map[channel] = ns
+                                conn_details.broker_to_client_chan_map[remote] = ns
+                            else:
+                                ns.broker_chan = channel
+                                ns.client_chan = remote
+                                conn_details.client_to_broker_chan_map[channel] = ns
+                                conn_details.client_to_broker_chan_map[remote] = ns
+
+                    if frame not in ns.frame_list:
+                        ns.frame_list.append(frame)
+                    ns.proto_list.append((frame,proto))
+
+                elif pname == 'end':
+                    # session teardown
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if not ns is None:
+                        if dst_is_broker:
+                            conn_details.EndClientChannel(channel)
+                        else:
+                            conn_details.EndBrokerChannel(channel)
+                        if frame not in ns.frame_list:
+                            ns.frame_list.append(frame)
+                        ns.proto_list.append((frame,proto))
+                    else:
+                        # TODO: Count a stray
+                        pass
+
+                else:
+                    # other performatives: using the channel in due course
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if ns is not None:
+                        if frame not in ns.frame_list:
+                            ns.frame_list.append(frame)
+                        ns.proto_list.append((frame,proto))
+                    else:
+                        # TODO: Count a stray
+                        pass
 
 def amqp_other_decode(proto):
     '''
@@ -772,6 +1003,7 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False):
     res = PerformativeInfo()
     perf = perf_field.get("value")
     if perf is None:
+        res.name = "none"
         res.web_show_str = "ERROR: can't decode performative from: " + str(proto.tag) + str(proto.attrib)
         return res
 
@@ -975,7 +1207,7 @@ def show_flow_list(title, flow_list, label):
 #
 def main_except(argv):
     import pdb
-    pdb.set_trace()
+    #pdb.set_trace()
     """Given a pdml file name, send the javascript web page to stdout"""
     if len(sys.argv) < 5:
         sys.exit('Usage: %s pdml-file-name trace-file-display-name broker-ports displayXferCorrelation' % sys.argv[0])
@@ -1068,7 +1300,14 @@ def main_except(argv):
     conn_to_frame_map = {}
     for conn in connection_id_list:
         conn_to_frame_map[conn] = []
-        
+
+    # create a map of (connection, ConnectionDetail(connection))
+    # all connections are known and this map needs no more additions
+    conn_details_map = {}
+    for conn in connection_id_list:
+        details = ConnectionDetail(conn)
+        conn_details_map[conn] = details
+
     # index the frames by connection
     for packet in amqp_packets:
         conn_to_frame_map[ connection_id(packet, global_vars) ].append( frame_id(packet) )
@@ -1089,6 +1328,10 @@ def main_except(argv):
                 proto_id = f_idc + str(proto_index) + "d"
                 frame_to_protos_map[ f_id ].append( proto_id )
                 proto_index += 1
+
+    # Fill in connection details with info about sessions.
+    # Manage sessions as they are found.
+    amqp_discover_inner_workings(amqp_packets, conn_details_map, global_vars)
 
     # create a map of transfer performatives. key=transfer data, value=list of frames sending that data
     transfer_data = {}
@@ -1227,9 +1470,9 @@ function go_back()
     print "  javascript:cursor_wait();"
     for conn_id, frame_ids in conn_to_frame_map.iteritems():
         for fid in frame_ids:
-            # Hide level 4
+            # Show level 4
             print "  javascript:show_level_4_%s();" % fid
-            # Hide level 2
+            # Show level 2
             print "  javascript:show_node(\'%s\');" % (fid + "c")
     # Show level 1
     print "  javascript:select_all();"
@@ -1243,6 +1486,43 @@ function go_back()
     print "function cursor_default() {"
     print "  document.body.style.cursor = 'default';"
     print "}"
+
+    # output the frame show/hide functions per session
+    for conn in connection_id_list:
+        conn_detail = conn_details_map[conn]
+        for session in conn_detail.session_list:
+            print "function show_%s_%d() {" % (conn_id, session.conn_epoch)
+            for frame in session.frame_list:
+                print "  javascript:show_node(\'%s\');" % frame_id(frame)
+            print "}"
+            print "function hide_%s_%d() {" % (conn_id, session.conn_epoch)
+            for frame in session.frame_list:
+                print "  javascript:hide_node(\'%s\');" % frame_id(frame)
+            print "}"
+            # manipulate checkboxes
+            print "function show_if_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
+            print "  if (document.getElementById(\"cb_sel_%s_%s\").checked) {" % (conn_id, session.conn_epoch)
+            print "    javascript:show_%s_%s();" % (conn_id, session.conn_epoch)
+            print "  } else {"
+            print "    javascript:hide_%s_%s();" % (conn_id, session.conn_epoch)
+            print "  }"
+            print "}"
+            print "function select_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
+            print "  document.getElementById(\"cb_sel_%s_%s\").checked = true;" % (conn_id, session.conn_epoch)
+            print "  javascript:show_%s_%s();" % (conn_id, session.conn_epoch)
+            print "}"
+            print "function deselect_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
+            print "  document.getElementById(\"cb_sel_%s_%s\").checked = false;" % (conn_id, session.conn_epoch)
+            print "  javascript:hide_%s_%s();" % (conn_id, session.conn_epoch)
+            print "}"
+            print "function toggle_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
+            print "  if (document.getElementById(\"cb_sel_%s_%s\").checked) {" % (conn_id, session.conn_epoch)
+            print "    document.getElementById(\"cb_sel_%s_%s\").checked = false;" % (conn_id, session.conn_epoch)
+            print "  } else {"
+            print "    document.getElementById(\"cb_sel_%s_%s\").checked = true;" % (conn_id, session.conn_epoch)
+            print "  }"
+            print "  javascript:show_if_cb_sel_%s_%s();" % (conn_id, session.conn_epoch)
+            print "}"
 
     # continue with the header
     print '''</script>
@@ -1290,9 +1570,39 @@ Generated from PDML on <b>'''
     print "<br>"
     for conn in connection_id_list:
         print "<input type=\"checkbox\" id=\"cb_sel_%s\" " % conn
-        print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">" % conn
+        print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (conn, nbsp())
+        # This lozenge shows/hides the sessions
+        print "<a href=\"javascript:toggle_node('%s_sessions')\">%s%s</a>" % (conn, lozenge(), nbsp())
         print "<font color=\"%s\">" % conn_id_to_color_map[ conn ]
-        print "%s</font>%s%s(n=%d)<br>" % (conn_id_to_name_map[conn], nbsp(), nbsp(), conn_frame_count[conn])
+        print "%s</font>%s%s(nFrames=%d)<br>" % (conn_id_to_name_map[conn], nbsp(), nbsp(), conn_frame_count[conn])
+        # sessions div
+        conn_detail = conn_details_map[conn]
+        print "<div width=\"100%%\" id=\"%s_sessions\" style=\"display:none\">" % conn
+        for session in conn_detail.session_list:
+            # This button toggles the frame display for the session
+            print "%s<input type=\"checkbox\" id=\"cb_sel_%s_%s\" " % (nbsp() * 4, conn, session.conn_epoch)
+            print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s_%s()\">%s" % (conn, session.conn_epoch, nbsp())
+            # This lozenge shows/hides session details
+            print "<a href=\"javascript:toggle_node('%s_session_%d_details')\">%s%s</a>" % (conn, session.conn_epoch, lozenge(), nbsp())
+            print "Session %s: [client channel: %s, broker channel: %s]: frame count: %d, performative count: %d<br>" % \
+                  (session.conn_epoch, session.client_chan, session.broker_chan, len(session.frame_list), len(session.proto_list))
+            print "<div width=\"100%%\" id=\"%s_session_%d_details\" style=\"display:none\">" % (conn, session.conn_epoch)
+            idx = 0
+            for frame,proto in session.proto_list:
+                info = amqp_decode(proto, global_vars)
+                dir_arrow = r_arrow_str() if connection_dst_is_broker(frame, global_vars) else l_arrow_str()
+                # This lozenge shows/hides performative details
+                print "%s<a href=\"javascript:toggle_node('%s_session_%d_perf_%d_details')\">%s%s</a>" % (
+                    leading(3), conn, session.conn_epoch, idx, lozenge(), nbsp())
+                print "Frame: %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
+                                                    dir_arrow, info.web_show_str)
+                print "<div width=\"100%%\" id=\"%s_session_%d_perf_%d_details\" style=\"display:none\">" % (
+                    conn, session.conn_epoch, idx)
+                show_fields(proto, 4)
+                print "</div>"
+                idx += 1
+            print "</div>"
+        print "</div>"
 
     # print the frames
     print "<br>"
