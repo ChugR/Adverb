@@ -1080,14 +1080,14 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     target = "undefined"
                     if role_is_receiver:
                         source_field = args.find("./field[@name='amqp.performative.arguments.source']")
-                        assert source_field is not None, "Source required for receiver"
-                        address_field = source_field.find("./field[@name='amqp.performative.arguments.address']")
-                        source = address_field.get('show') if address_field is not None else "none"
+                        if source_field is not None: # "Source required for receiver"?
+                            address_field = source_field.find("./field[@name='amqp.performative.arguments.address']")
+                            source = address_field.get('show') if address_field is not None else "none"
                     else:
                         target_field = args.find("./field[@name='amqp.performative.arguments.target']")
-                        assert target_field is not None, "Target required for sender"
-                        address_field = target_field.find("./field[@name='amqp.performative.arguments.address']")
-                        target = address_field.get('show') if address_field is not None else "none"
+                        if target_field is not None: # "Target required for sender"?
+                            address_field = target_field.find("./field[@name='amqp.performative.arguments.address']")
+                            target = address_field.get('show') if address_field is not None else "none"
 
                     nl = ns.FindLinkByName(link_name)
                     if nl is None:
