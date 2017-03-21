@@ -404,9 +404,9 @@ class ConnectionDetail():
         # id in form 'clienthost_port_serverhost_port'
         self.id = id
 
-        # epoch number differentiates items that otherwise have same identifiers.
+        # seq_no number differentiates items that otherwise have same identifiers.
         # sessions, for example
-        self.epoch = 0
+        self.seq_no = 0
 
         # session_list holds SessionDetail records
         # Sessions for a connection are identified by the client-to-broker and
@@ -415,10 +415,14 @@ class ConnectionDetail():
         # This list holds all of them.
         self.session_list = []
 
-        # session_map holds currently active session as indexed by channel
+        # session_list holds all sessions either active or retired
         # this map indexed by the channel refers to the current item in the session_list
         self.client_to_broker_chan_map = {}
         self.broker_to_client_chan_map = {}
+
+        # count of AMQP performatives for this connection that are not accounted
+        # properly in session and link processing
+        self.unaccounted_frame_proto_list = []
 
     def FindSession(self, channel, dst_is_broker):
         '''
@@ -437,9 +441,12 @@ class ConnectionDetail():
                 result = self.broker_to_client_chan_map[channel]
         return result
 
-    def GetEpoch(self):
-        self.epoch += 1
-        return self.epoch
+    def GetId(self):
+        return self.id
+
+    def GetSeqNo(self):
+        self.seq_no += 1
+        return str(self.seq_no)
 
     def EndClientChannel(self, channel):
         # take existing session out of connection chan map
@@ -455,21 +462,152 @@ class SessionDetail():
     '''
     Holds facts about a session
     '''
-    def __init__(self, conn_id, conn_epoch):
-        self.conn_id = conn_id
-        self.conn_epoch = conn_epoch
+    def __init__(self, conn_detail, conn_seq, start_time):
+        # parent connection
+        self.conn_detail = conn_detail
+
+        # some seq number
+        self.conn_epoch = conn_seq
+
+        # Timing
+        self.time_start = start_time
+        self.time_end = start_time
 
         self.client_chan = -1
         self.broker_chan = -1
 
         self.originated_by_client = True
 
-        # epoch number differentiates items that otherwise have same identifiers.
+        # seq_no number differentiates items that otherwise have same identifiers.
         # links for example
-        self.epoch = 1
+        self.seq_no = 0
 
         self.frame_list = []
-        self.proto_list = []
+        self.frame_proto_list = []
+
+        # link_list holds LinkDetail records
+        # Links for a session are identified by the client-to-broker and
+        # broker-to-client handle number pair.
+        # There may be many links all using the same handle pairs.
+        # This list holds all of them.
+        self.link_list = []
+
+        # link_list holds all links either active or retired
+        # this map indexed by the handle refers to the current item in the link_list
+        self.client_to_broker_link_map = {}
+        self.broker_to_client_link_map = {}
+
+        # Link name in attach finds link details in link_list
+        self.link_name_to_detail_map = {}
+
+        # count of AMQP performatives for this connection that are not accounted
+        # properly in link processing
+        self.unaccounted_frame_proto_list = []
+
+    def FrameCount(self):
+        count = 0
+        for link in self.link_list:
+            count += len(link.frame_list)
+        count += len(self.frame_list)
+        return count
+
+    def ProtoCount(self):
+        count = 0
+        for link in self.link_list:
+            count += len(link.frame_proto_list)
+        count += len(self.frame_proto_list)
+        count += len(self.unaccounted_frame_proto_list)
+        return count
+
+    def FindLinkByName(self, attach_name):
+        nl = None
+        if attach_name in self.link_name_to_detail_map:
+            nl = self.link_name_to_detail_map[attach_name]
+        return nl
+
+    def FindLinkByHandle(self, handle, dst_is_broker):
+        '''
+        Find the current link by handle number
+        qualify lookup based on packet direction
+        :param link: the performative channel
+        :param dst_is_broker: packet direction
+        :return: the session or None
+        '''
+        result = None
+        if dst_is_broker:
+            if handle in self.client_to_broker_link_map:
+                result = self.client_to_broker_link_map[handle]
+        else:
+            if handle in self.broker_to_client_link_map:
+                result = self.broker_to_client_link_map[handle]
+        return result
+
+    def GetId(self):
+        return self.conn_detail.GetId() + "_" + str(self.conn_epoch)
+
+    def GetSeqNo(self):
+        self.seq_no += 1
+        return self.seq_no
+
+    def DetachClientHandle(self, handle):
+        # take existing link out of session handle map
+        if handle in self.client_to_broker_link_map:
+            del self.client_to_broker_link_map[handle]
+
+    def DetachBrokerHandle(self, handle):
+        # take existing link out of session handle map
+        if handle in self.broker_to_client_link_map:
+            del self.broker_to_client_link_map[handle]
+
+    def DetachHandle(self, handle, dst_is_broker):
+        if dst_is_broker:
+            self.DetachClientHandle(handle)
+        else:
+            self.DetachBrokerHandle(handle)
+
+class LinkDetail():
+    '''
+    Holds facts about a link endpoint
+    '''
+    def __init__(self, session_detail, session_seq, link_name, start_time):
+        # parent session
+        self.session_detail = session_detail
+
+        # some seq number
+        self.session_seq = session_seq
+
+        # link name
+        self.name = link_name
+
+        # Timing
+        self.time_start = start_time
+        self.time_end = start_time
+
+        self.client_handle = -1
+        self.broker_handle = -1
+
+        self.originated_by_client = True
+        self.originator_is_receiver = True
+
+        self.receiver_source = "none"
+        self.sender_target = "none"
+
+        self.frame_list = []
+        self.frame_proto_list = []
+
+        # account for credit. History[n] holds credit after processing frame n
+        self.link_credit = 0
+        self.link_credit_history = []
+
+    def GetId(self):
+        return self.session_detail.GetId() + "_" + str(self.session_seq)
+
+    def FrameCount(self):
+        return len(self.frame_list)
+
+    def ProtoCount(self):
+        return len(self.frame_proto_list)
+
 
 #
 #
@@ -842,18 +980,19 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                 pname = get_performative_name(proto)
                 if pname == 'none' or pname == 'open' or pname == 'close':
                     # not all protos have a channel and these we don't care about
+                    conn_details.unaccounted_frame_proto_list.append((frame, proto))
                     continue
 
                 channel = proto.find("./field[@name='amqp.channel']").get("show")
                 assert channel is not None and len(channel) > 0, "amqp proto must have a channel"
+                args = proto.find("./field[@name='amqp.method.arguments']")
                 if pname == 'begin':
                     # session establishment
-                    args = proto.find("./field[@name='amqp.method.arguments']")
                     remote = args.find("./field[@name='amqp.performative.arguments.remoteChannel']")
                     remote = field_show_value_or_null(remote)
                     if remote == 'null':
                         # Creating a new session from scratch
-                        ns = SessionDetail(cid, conn_details.GetEpoch())
+                        ns = SessionDetail(conn_details, conn_details.GetSeqNo(), frame_time_relative(frame))
                         conn_details.session_list.append(ns)
 
                         if dst_is_broker:
@@ -882,7 +1021,7 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                                 conn_details.broker_to_client_chan_map[channel] = ns
                         else:
                             # peer's channel does not exist. Create a new session and supply both channels
-                            ns = SessionDetail(cid, conn_details.GetEpoch())
+                            ns = SessionDetail(conn_details, conn_details.GetSeqNo(), frame_time_relative(frame))
                             if dst_is_broker:
                                 ns.client_chan = channel
                                 ns.broker_chan = remote
@@ -896,7 +1035,8 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
 
                     if frame not in ns.frame_list:
                         ns.frame_list.append(frame)
-                    ns.proto_list.append((frame,proto))
+                    ns.frame_proto_list.append((frame, proto))
+                    ns.time_end = frame_time_relative(frame)
 
                 elif pname == 'end':
                     # session teardown
@@ -908,10 +1048,199 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                             conn_details.EndBrokerChannel(channel)
                         if frame not in ns.frame_list:
                             ns.frame_list.append(frame)
-                        ns.proto_list.append((frame,proto))
+                        ns.frame_proto_list.append((frame,proto))
+                        ns.time_end = frame_time_relative(frame)
                     else:
-                        # TODO: Count a stray
-                        pass
+                        # an End with no session
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
+
+                elif pname == 'attach':
+                    # link establishment
+                    # Find the session
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if ns is None:
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    args = proto.find("./field[@name='amqp.method.arguments']")
+
+                    link_name_field = args.find("./field[@name='amqp.performative.arguments.name']")
+                    assert link_name_field is not None, "Link name is required"
+                    link_name = extract_name(link_name_field.get('showname'))
+
+                    handle_field = args.find("./field[@name='amqp.performative.arguments.handle']")
+                    assert handle_field is not None, "Link handle is required"
+                    handle = handle_field.get('show')
+
+                    role_field = args.find("./field[@name='amqp.performative.arguments.role']")
+                    assert role_field is not None, "Link role is required"
+                    role_is_receiver = role_field.get('value') == '41'
+
+                    source = "undefined"
+                    target = "undefined"
+                    if role_is_receiver:
+                        source_field = args.find("./field[@name='amqp.performative.arguments.source']")
+                        assert source_field is not None, "Source required for receiver"
+                        address_field = source_field.find("./field[@name='amqp.performative.arguments.address']")
+                        source = address_field.get('show') if address_field is not None else "none"
+                    else:
+                        target_field = args.find("./field[@name='amqp.performative.arguments.target']")
+                        assert target_field is not None, "Target required for sender"
+                        address_field = target_field.find("./field[@name='amqp.performative.arguments.address']")
+                        target = address_field.get('show') if address_field is not None else "none"
+
+                    nl = ns.FindLinkByName(link_name)
+                    if nl is None:
+                        # Creating a new link from scratch resulting in a half attached link
+                        nl = LinkDetail(ns, ns.GetSeqNo(), link_name, frame_time_relative(frame))
+                        ns.link_list.append(nl)
+                        ns.link_name_to_detail_map[link_name] = nl
+
+                        if dst_is_broker:
+                            # client is creating a new link
+                            ns.DetachClientHandle(handle)
+                            ns.client_to_broker_link_map[handle] = nl
+                            nl.client_handle = handle
+                            nl.originated_by_client = True
+                            nl.originator_is_receiver = role_is_receiver
+                        else:
+                            # broker is creating a new link
+                            ns.DetachBrokerHandle(handle)
+                            ns.broker_to_client_link_map[handle] = nl
+                            nl.broker_handle = handle
+                            nl.originated_by_client = False
+                            nl.originator_is_receiver = role_is_receiver
+
+                        nl.receiver_source = source
+                        nl.sender_target = target
+
+                    else:
+                        if dst_is_broker:
+                            ns.client_to_broker_link_map[handle] = nl
+                            nl.client_handle = handle
+                        else:
+                            ns.broker_to_client_link_map[handle] = nl
+                            nl.broker_handle = handle
+
+
+                    if frame not in nl.frame_list:
+                        nl.frame_list.append(frame)
+
+                    nl.frame_proto_list.append((frame, proto))
+                    nl.time_end = frame_time_relative(frame)
+                    nl.link_credit_history.append(nl.link_credit)
+
+                elif pname == 'detach':
+                    # Find the session
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if ns is None:
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    handle_field = args.find("./field[@name='amqp.performative.arguments.handle']")
+                    assert handle_field is not None, "Link handle is required"
+                    handle = handle_field.get('show')
+
+                    nl = ns.FindLinkByHandle(handle, dst_is_broker)
+                    if nl is None:
+                        ns.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    ns.DetachHandle(handle, dst_is_broker)
+
+                    if frame not in nl.frame_list:
+                        nl.frame_list.append(frame)
+                    nl.frame_proto_list.append((frame, proto))
+                    nl.time_end = frame_time_relative(frame)
+                    nl.link_credit_history.append(nl.link_credit)
+
+                elif pname == 'flow':
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if ns is None:
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    handle = args.find("./field[@name='amqp.performative.arguments.handle']").get("show")
+
+                    nl = ns.FindLinkByHandle(handle, dst_is_broker)
+                    if nl is None:
+                        ns.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    if frame not in nl.frame_list:
+                        nl.frame_list.append(frame)
+                    nl.frame_proto_list.append((frame, proto))
+                    nl.time_end = frame_time_relative(frame)
+
+                    # account for credit
+                    # Does this flow carry a normal credit?
+                    #   Link created by  Link type  Who sends flow with credit?
+                    #   ---------------  ---------  ---------------------------
+                    # 1 client           receiver   client
+                    # 2 client           sender     server
+                    # 3 server           receiver   server
+                    # 4 server           sender     client
+                    afc = False
+                    if dst_is_broker:
+                        # client sending this flow
+                        if nl.originated_by_client:
+                            # client created this link
+                            if nl.originator_is_receiver:
+                                # client created a receiver
+                                afc = True # case 1
+                            else:
+                                pass # back channel
+                        else:
+                            # server created this link
+                            if nl.originator_is_receiver:
+                                pass # back channel
+                            else:
+                                afc = True # case 4
+                    else:
+                        # server sending this flow
+                        if nl.originated_by_client:
+                            # client created this link
+                            if nl.originator_is_receiver:
+                                # client created a receiver
+                                pass # back channel
+                            else:
+                                afc = True # case 2
+                        else:
+                            # server created this link
+                            if nl.originator_is_receiver:
+                                afc = True # case 3
+                            else:
+                                pass # back channel
+
+                    if afc:
+                        credit = args.find("./field[@name='amqp.performative.arguments.linkCredit']").get("show")
+                        credit = int(credit)
+                        nl.link_credit = credit
+
+                    nl.link_credit_history.append(nl.link_credit)
+
+                elif pname == 'transfer':
+
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if ns is None:
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    handle = args.find("./field[@name='amqp.performative.arguments.handle']").get("show")
+
+                    nl = ns.FindLinkByHandle(handle, dst_is_broker)
+                    if nl is None:
+                        ns.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+
+                    if frame not in nl.frame_list:
+                        nl.frame_list.append(frame)
+                    nl.frame_proto_list.append((frame, proto))
+                    nl.time_end = frame_time_relative(frame)
+
+                    # account for credit
+                    nl.link_credit -= 1
+                    nl.link_credit_history.append(nl.link_credit)
 
                 else:
                     # other performatives: using the channel in due course
@@ -919,9 +1248,10 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     if ns is not None:
                         if frame not in ns.frame_list:
                             ns.frame_list.append(frame)
-                        ns.proto_list.append((frame,proto))
+                        ns.frame_proto_list.append((frame,proto))
                     else:
                         # TODO: Count a stray
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
                         pass
 
 def amqp_other_decode(proto):
@@ -1491,38 +1821,75 @@ function go_back()
     for conn in connection_id_list:
         conn_detail = conn_details_map[conn]
         for session in conn_detail.session_list:
-            print "function show_%s_%d() {" % (conn_id, session.conn_epoch)
+            sid = session.GetId()
+            print "function show_%s() {" % (sid)
             for frame in session.frame_list:
                 print "  javascript:show_node(\'%s\');" % frame_id(frame)
             print "}"
-            print "function hide_%s_%d() {" % (conn_id, session.conn_epoch)
+            print "function hide_%s() {" % (sid)
             for frame in session.frame_list:
                 print "  javascript:hide_node(\'%s\');" % frame_id(frame)
             print "}"
             # manipulate checkboxes
-            print "function show_if_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
-            print "  if (document.getElementById(\"cb_sel_%s_%s\").checked) {" % (conn_id, session.conn_epoch)
-            print "    javascript:show_%s_%s();" % (conn_id, session.conn_epoch)
+            print "function show_if_cb_sel_%s() {" % (sid)
+            print "  if (document.getElementById(\"cb_sel_%s\").checked) {" % (sid)
+            print "    javascript:show_%s();" % (sid)
             print "  } else {"
-            print "    javascript:hide_%s_%s();" % (conn_id, session.conn_epoch)
+            print "    javascript:hide_%s();" % (sid)
             print "  }"
             print "}"
-            print "function select_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
-            print "  document.getElementById(\"cb_sel_%s_%s\").checked = true;" % (conn_id, session.conn_epoch)
-            print "  javascript:show_%s_%s();" % (conn_id, session.conn_epoch)
+            print "function select_cb_sel_%s() {" % (sid)
+            print "  document.getElementById(\"cb_sel_%s\").checked = true;" % (sid)
+            print "  javascript:show_%s();" % (sid)
             print "}"
-            print "function deselect_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
-            print "  document.getElementById(\"cb_sel_%s_%s\").checked = false;" % (conn_id, session.conn_epoch)
-            print "  javascript:hide_%s_%s();" % (conn_id, session.conn_epoch)
+            print "function deselect_cb_sel_%s() {" % (sid)
+            print "  document.getElementById(\"cb_sel_%s\").checked = false;" % (sid)
+            print "  javascript:hide_%s();" % (sid)
             print "}"
-            print "function toggle_cb_sel_%s_%s() {" % (conn_id, session.conn_epoch)
-            print "  if (document.getElementById(\"cb_sel_%s_%s\").checked) {" % (conn_id, session.conn_epoch)
-            print "    document.getElementById(\"cb_sel_%s_%s\").checked = false;" % (conn_id, session.conn_epoch)
+            print "function toggle_cb_sel_%s() {" % (sid)
+            print "  if (document.getElementById(\"cb_sel_%s\").checked) {" % (sid)
+            print "    document.getElementById(\"cb_sel_%s\").checked = false;" % (sid)
             print "  } else {"
-            print "    document.getElementById(\"cb_sel_%s_%s\").checked = true;" % (conn_id, session.conn_epoch)
+            print "    document.getElementById(\"cb_sel_%s\").checked = true;" % (sid)
             print "  }"
-            print "  javascript:show_if_cb_sel_%s_%s();" % (conn_id, session.conn_epoch)
+            print "  javascript:show_if_cb_sel_%s();" % (sid)
             print "}"
+
+            for link in session.link_list:
+                sid = link.GetId()
+                print "function show_%s() {" % (sid)
+                for frame in link.frame_list:
+                    print "  javascript:show_node(\'%s\');" % frame_id(frame)
+                print "}"
+                print "function hide_%s() {" % (sid)
+                for frame in link.frame_list:
+                    print "  javascript:hide_node(\'%s\');" % frame_id(frame)
+                print "}"
+                # manipulate checkboxes
+                print "function show_if_cb_sel_%s() {" % (sid)
+                print "  if (document.getElementById(\"cb_sel_%s\").checked) {" % (sid)
+                print "    javascript:show_%s();" % (sid)
+                print "  } else {"
+                print "    javascript:hide_%s();" % (sid)
+                print "  }"
+                print "}"
+                print "function select_cb_sel_%s() {" % (sid)
+                print "  document.getElementById(\"cb_sel_%s\").checked = true;" % (sid)
+                print "  javascript:show_%s();" % (sid)
+                print "}"
+                print "function deselect_cb_sel_%s() {" % (sid)
+                print "  document.getElementById(\"cb_sel_%s\").checked = false;" % (sid)
+                print "  javascript:hide_%s();" % (sid)
+                print "}"
+                print "function toggle_cb_sel_%s() {" % (sid)
+                print "  if (document.getElementById(\"cb_sel_%s\").checked) {" % (sid)
+                print "    document.getElementById(\"cb_sel_%s\").checked = false;" % (sid)
+                print "  } else {"
+                print "    document.getElementById(\"cb_sel_%s\").checked = true;" % (sid)
+                print "  }"
+                print "  javascript:show_if_cb_sel_%s();" % (sid)
+                print "}"
+
 
     # continue with the header
     print '''</script>
@@ -1572,35 +1939,96 @@ Generated from PDML on <b>'''
         print "<input type=\"checkbox\" id=\"cb_sel_%s\" " % conn
         print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (conn, nbsp())
         # This lozenge shows/hides the sessions
+        conn_detail = conn_details_map[conn]
         print "<a href=\"javascript:toggle_node('%s_sessions')\">%s%s</a>" % (conn, lozenge(), nbsp())
         print "<font color=\"%s\">" % conn_id_to_color_map[ conn ]
         print "%s</font>%s%s(nFrames=%d)<br>" % (conn_id_to_name_map[conn], nbsp(), nbsp(), conn_frame_count[conn])
         # sessions div
-        conn_detail = conn_details_map[conn]
         print "<div width=\"100%%\" id=\"%s_sessions\" style=\"display:none\">" % conn
+
+        # This lozenge shows/hides the connection performatives not part of any session
+        print "%s<a href=\"javascript:toggle_node('%s_conn_unaccounted')\">%s%s</a>" % (leading(2), conn, lozenge(), nbsp())
+        print "Performatives not part of any session<br>"
+        print "<div width=\"100%%\" id=\"%s_conn_unaccounted\" style=\"display:none\">" % conn
+        idx = 0
+        for frame, proto in conn_detail.unaccounted_frame_proto_list:
+            info = amqp_decode(proto, global_vars)
+            dir_arrow = r_arrow_str() if connection_dst_is_broker(frame, global_vars) else l_arrow_str()
+            # This lozenge shows/hides performative details
+            print "%s<a href=\"javascript:toggle_node('%s_conn_unacc_%d_details')\">%s%s</a>" % (
+                leading(3), conn, idx, lozenge(), nbsp())
+            print "Frame: %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
+                                              dir_arrow, info.web_show_str)
+            print "<div width=\"100%%\" id=\"%s_conn_unacc_%d_details\" style=\"display:none\">" % (
+                conn, idx)
+            show_fields(proto, 4)
+            print "</div>"
+            idx += 1
+        print "</div>"
+
         for session in conn_detail.session_list:
             # This button toggles the frame display for the session
-            print "%s<input type=\"checkbox\" id=\"cb_sel_%s_%s\" " % (nbsp() * 4, conn, session.conn_epoch)
-            print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s_%s()\">%s" % (conn, session.conn_epoch, nbsp())
+            sid = session.GetId()
+            print "%s<input type=\"checkbox\" id=\"cb_sel_%s\" " % (nbsp() * 4, sid)
+            print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (sid, nbsp())
             # This lozenge shows/hides session details
-            print "<a href=\"javascript:toggle_node('%s_session_%d_details')\">%s%s</a>" % (conn, session.conn_epoch, lozenge(), nbsp())
-            print "Session %s: [client channel: %s, broker channel: %s]: frame count: %d, performative count: %d<br>" % \
-                  (session.conn_epoch, session.client_chan, session.broker_chan, len(session.frame_list), len(session.proto_list))
-            print "<div width=\"100%%\" id=\"%s_session_%d_details\" style=\"display:none\">" % (conn, session.conn_epoch)
+            print "<a href=\"javascript:toggle_node('%s_ssn_details')\">%s%s</a>" % (sid, lozenge(), nbsp())
+            print "Session %s: Channels: client: %s, server: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d<br>" % \
+                  (session.conn_epoch, session.client_chan, session.broker_chan, session.time_start, session.time_end, \
+                   session.FrameCount(), session.ProtoCount())
+            print "<div width=\"100%%\" id=\"%s_ssn_details\" style=\"display:none\">" % (sid)
+
+            # This lozenge shows/hides the session performatives not part of any link
+            print "%s<a href=\"javascript:toggle_node('%s_sess_unaccounted')\">%s%s</a>" % (
+            leading(2), sid, lozenge(), nbsp())
+            print "Performatives not part of any link<br>"
+            print "<div width=\"100%%\" id=\"%s_sess_unaccounted\" style=\"display:none\">" % sid
             idx = 0
-            for frame,proto in session.proto_list:
+            for frame,proto in session.frame_proto_list:
                 info = amqp_decode(proto, global_vars)
                 dir_arrow = r_arrow_str() if connection_dst_is_broker(frame, global_vars) else l_arrow_str()
                 # This lozenge shows/hides performative details
-                print "%s<a href=\"javascript:toggle_node('%s_session_%d_perf_%d_details')\">%s%s</a>" % (
-                    leading(3), conn, session.conn_epoch, idx, lozenge(), nbsp())
+                print "%s<a href=\"javascript:toggle_node('%s_session_perf_%d_details')\">%s%s</a>" % (
+                    leading(3), sid, idx, lozenge(), nbsp())
                 print "Frame: %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
                                                     dir_arrow, info.web_show_str)
-                print "<div width=\"100%%\" id=\"%s_session_%d_perf_%d_details\" style=\"display:none\">" % (
-                    conn, session.conn_epoch, idx)
+                print "<div width=\"100%%\" id=\"%s_session_perf_%d_details\" style=\"display:none\">" % (
+                    sid, idx)
                 show_fields(proto, 4)
                 print "</div>"
                 idx += 1
+            print "</div>"
+            idx = 0
+            for link in session.link_list:
+                # This button toggles the frame display for the link
+                lid = link.GetId()
+                info = "client " if link.originated_by_client else "server "
+                info += "%s %s" % ("receiver ", link.receiver_source) if link.originator_is_receiver else \
+                    "%s %s" % ("sender ", link.sender_target)
+                print "%s<input type=\"checkbox\" id=\"cb_sel_%s\" " % (nbsp() * 8, lid)
+                print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (lid, nbsp())
+                # This lozenge shows/hides link details
+                print "<a href=\"javascript:toggle_node('%s_link_details')\">%s%s</a>" % (lid, lozenge(), nbsp())
+                print "Link %s: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d<br>" % \
+                      (link.session_seq, info, link.time_start, link.time_end, \
+                       link.FrameCount(), link.ProtoCount())
+                print "<div width=\"100%%\" id=\"%s_link_details\" style=\"display:none\">" % (lid)
+                idx = 0
+                for frame, proto in link.frame_proto_list:
+                    info = amqp_decode(proto, global_vars)
+                    dir_arrow = r_arrow_str() if connection_dst_is_broker(frame, global_vars) else l_arrow_str()
+                    # This lozenge shows/hides performative details
+                    print "%s<a href=\"javascript:toggle_node('%s_link_perf_%d_details')\">%s%s</a>" % (
+                        leading(4), lid, idx, lozenge(), nbsp())
+                    print "Frame: %s %s %s %s <i>credit%s%d</i><br>" % (frame_num_str(frame), frame_time_relative((frame)),
+                                                      dir_arrow, info.web_show_str, r_arrow_spaced(), link.link_credit_history[idx])
+                    print "<div width=\"100%%\" id=\"%s_link_perf_%d_details\" style=\"display:none\">" % (
+                        lid, idx)
+                    show_fields(proto, 5)
+                    print "</div>"
+                    idx += 1
+                print "</div>"
+            # End of session details
             print "</div>"
         print "</div>"
 
@@ -1712,7 +2140,7 @@ Generated from PDML on <b>'''
 
     # post run analysis counts.
     print "<br><h3><a name=\"analysisStats\">Post-run Analysis Statistics</a></h3>"
-    print "<TABLE border=\"1\" summary=\"This table shows counts of interesting or anomalous things during processing.\">"
+    print "<TABLE border=\"1\" summary=\"This table shows counts of interesting or anomalous things found during processing.\">"
     print "<CAPTION><EM>Analysis Statistics</EM></CAPTION>"
     print "<TR>"
     print "<TH>Count"
