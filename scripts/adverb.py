@@ -529,6 +529,8 @@ class SessionDetail():
         nl = None
         if attach_name in self.link_name_to_detail_map:
             nl = self.link_name_to_detail_map[attach_name]
+            if nl.client_handle == -1 and nl.broker_handle == -1:
+                nl = None
         return nl
 
     def FindLinkByHandle(self, handle, dst_is_broker):
@@ -558,12 +560,16 @@ class SessionDetail():
     def DetachClientHandle(self, handle):
         # take existing link out of session handle map
         if handle in self.client_to_broker_link_map:
+            nl = self.client_to_broker_link_map[handle]
             del self.client_to_broker_link_map[handle]
+            nl.client_handle = -1
 
     def DetachBrokerHandle(self, handle):
         # take existing link out of session handle map
         if handle in self.broker_to_client_link_map:
+            nl = self.broker_to_client_link_map[handle]
             del self.broker_to_client_link_map[handle]
+            nl.broker_handle = -1
 
     def DetachHandle(self, handle, dst_is_broker):
         if dst_is_broker:
