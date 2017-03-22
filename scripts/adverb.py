@@ -251,7 +251,7 @@ def detect_tcp_expert_warning(packet):
 
 #
 # colorize a directive with an error indication
-def colorize_performative_error(proto, res, global_vars):
+def colorize_performative_error(proto, res, global_vars, count=False):
     '''
     Colorize and count AMQP performatives with errors
     :param proto: XML element tree type proto, name = amqp
@@ -264,12 +264,13 @@ def colorize_performative_error(proto, res, global_vars):
         e_size      = error.get("size")
         if int(e_size) > 1:
             res.name = "<span style=\"background-color:yellow\">" + res.name + "</span>"
-            global_vars.highlighted_errors += 1
+            if count:
+                global_vars.highlighted_errors += 1
 
 #
-# colorize a disposition directive that does not have deliver-state.accepted
+# colorize a disposition directive that does not have delivery-state.accepted
 # TODO: choices are: absent, accepted, rejected, released, modified
-def colorize_dispositions_not_accepted(proto, res, global_vars):
+def colorize_dispositions_not_accepted(proto, res, global_vars, count=False):
     '''
     Colorize and count AMQP dispositions not 'accepted'
     :param proto: XML element tree type proto, name = amqp
@@ -280,22 +281,26 @@ def colorize_dispositions_not_accepted(proto, res, global_vars):
     args  = proto.find("./field[@name='amqp.method.arguments']")
     state = args.find("./field[@name='amqp.delivery-state.accepted']")
     if not state is None:
-        global_vars.dispositions_accepted += 1
+        if count:
+            global_vars.dispositions_accepted += 1
     else:
         colorize = True
         state = args.find("./field[@name='amqp.delivery-state.rejected']")
         if not state is None:
-            global_vars.dispositions_rejected += 1
+            if count:
+                global_vars.dispositions_rejected += 1
         else:
             state = args.find("./field[@name='amqp.delivery-state.released']")
             if not state is None:
-                global_vars.dispositions_released += 1
+                if count:
+                    global_vars.dispositions_released += 1
             else:
                 state = args.find("./field[@name='amqp.delivery-state.modified']")
-                if not state is None:
-                    global_vars.dispositions_modified += 1
-                else:
-                    global_vars.dispositions_no_delivery_state += 1
+                if count:
+                    if not state is None:
+                        global_vars.dispositions_modified += 1
+                    else:
+                        global_vars.dispositions_no_delivery_state += 1
         if colorize:
             res.name = "<span style=\"background-color:gold\">" + res.name + "</span>"
 
@@ -458,10 +463,10 @@ class ConnectionDetail():
         if channel in self.broker_to_client_chan_map:
             del self.broker_to_client_chan_map[channel]
 
-    def GetNoCreditEventCount(self):
+    def GetLinkEventCount(self):
         c = 0
         for session in self.session_list:
-            c += session.GetNoCreditEventCount()
+            c += session.GetLinkEventCount()
         return c
 
 class SessionDetail():
@@ -577,10 +582,10 @@ class SessionDetail():
         else:
             self.DetachBrokerHandle(handle)
 
-    def GetNoCreditEventCount(self):
+    def GetLinkEventCount(self):
         c = 0
         for link in self.link_list:
-            c += link.GetNoCreditEventCount()
+            c += link.GetLinkEventCount()
         return c
 
 class LinkDetail():
@@ -634,8 +639,8 @@ class LinkDetail():
     def ProtoCount(self):
         return len(self.frame_proto_list)
 
-    def GetNoCreditEventCount(self):
-        return self.credit_went_zero_events
+    def GetLinkEventCount(self):
+        return self.credit_went_zero_events + self.credit_went_negative_events
 #
 #
 class ShortNames():
@@ -923,7 +928,7 @@ def field_show_value_or_null(field):
         return field.get('show')
 
 
-def get_credit_display_string(event_count):
+def get_link_event_display_string(event_count, prefix="LinkEvents: "):
     '''
     Generate the title display string for the given credit events value.
     Highlight positive count, hide zero count
@@ -932,7 +937,7 @@ def get_credit_display_string(event_count):
     '''
     result = ""
     if event_count > 0:
-        result = "<span style=\"background-color:yellow\">LinkCredit: %d</span>" % event_count
+        result = "<span style=\"background-color:yellow\">%s%d</span>" % (prefix, event_count)
     return result
 
 
@@ -1401,7 +1406,7 @@ def amqp_other_decode(proto):
     res.web_show_str = "<strong>???</strong> Undecoded frame"
     return res
 
-def amqp_decode(proto, global_vars, arg_display_xfer=False):
+def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=False):
     assert proto is not None, "amqp_decode receives null proto"
 
     '''Given an amqp proto, return parsed PerformativeInfo summary'''
@@ -1518,7 +1523,7 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False):
         res.first   = extract_name(first)
         res.last    = extract_name(last)
         res.name    = "disposition"
-        colorize_dispositions_not_accepted(proto, res, global_vars)
+        colorize_dispositions_not_accepted(proto, res, global_vars, count_anomalies)
         res.role    = extract_name(role)
         res.web_show_str  = ("<strong>%s</strong>  [%s] (%s %s-%s)" % 
                              (res.name, res.channel, res.role, res.first, res.last))
@@ -1530,7 +1535,7 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False):
         handle      = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
         res.handle         = extract_name(handle)
         res.name           = "detach"
-        colorize_performative_error(proto, res, global_vars)
+        colorize_performative_error(proto, res, global_vars, count_anomalies)
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
         res.web_show_str   = "<strong>%s</strong> %s" % (res.name, colorize_bg(res.channel_handle))
     
@@ -1538,14 +1543,14 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False):
         # Performative: end [channel] 
         res.channel      = proto.find("./field[@name='amqp.channel']").get("show")
         res.name         = "end"
-        colorize_performative_error(proto, res, global_vars)
+        colorize_performative_error(proto, res, global_vars, count_anomalies)
         res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
 
     elif perf == '18':
         # Performative: close [0] always channel 0
         res.channel      = "0"
         res.name         = "close"
-        colorize_performative_error(proto, res, global_vars)
+        colorize_performative_error(proto, res, global_vars, count_anomalies)
         res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
 
     else:
@@ -2023,7 +2028,7 @@ Generated from PDML on <b>'''
         print "<a href=\"javascript:toggle_node('%s_sessions')\">%s%s</a>" % (conn, lozenge(), nbsp())
         print "<font color=\"%s\">" % conn_id_to_color_map[ conn ]
         print "%s</font>%s%s(nFrames=%d) %s<br>" % (conn_id_to_name_map[conn], nbsp(), nbsp(), conn_frame_count[conn], \
-                                                    get_credit_display_string(conn_detail.GetNoCreditEventCount()))
+                                                    get_link_event_display_string(conn_detail.GetLinkEventCount()))
         # sessions div
         print "<div width=\"100%%\" id=\"%s_sessions\" style=\"display:none\">" % conn
 
@@ -2056,12 +2061,12 @@ Generated from PDML on <b>'''
             print "<a href=\"javascript:toggle_node('%s_ssn_details')\">%s%s</a>" % (sid, lozenge(), nbsp())
             print "Session %s: Channels: client: %s, server: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d %s<br>" % \
                   (session.conn_epoch, session.client_chan, session.broker_chan, session.time_start, session.time_end, \
-                   session.FrameCount(), session.ProtoCount(), get_credit_display_string(session.GetNoCreditEventCount()))
+                   session.FrameCount(), session.ProtoCount(), get_link_event_display_string(session.GetLinkEventCount()))
             print "<div width=\"100%%\" id=\"%s_ssn_details\" style=\"display:none\">" % (sid)
 
             # This lozenge shows/hides the session performatives not part of any link
-            print "%s<a href=\"javascript:toggle_node('%s_sess_unaccounted')\">%s%s</a>" % (
-            leading(2), sid, lozenge(), nbsp())
+            print "%s%s<a href=\"javascript:toggle_node('%s_sess_unaccounted')\">%s%s</a>" % (
+                leading(2), nbsp() * 2, sid, lozenge(), nbsp())
             print "Performatives not part of any link<br>"
             print "<div width=\"100%%\" id=\"%s_sess_unaccounted\" style=\"display:none\">" % sid
             idx = 0
@@ -2090,14 +2095,20 @@ Generated from PDML on <b>'''
                 print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (lid, nbsp())
                 # This lozenge shows/hides link details
                 print "<a href=\"javascript:toggle_node('%s_link_details')\">%s%s</a>" % (lid, lozenge(), nbsp())
-                ncec = link.GetNoCreditEventCount()
+                lec = link.GetLinkEventCount()
                 print "Link %s: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d %s<br>" % \
                       (link.session_seq, info, link.time_start, link.time_end, \
-                       link.FrameCount(), link.ProtoCount(), get_credit_display_string(ncec))
+                       link.FrameCount(), link.ProtoCount(), get_link_event_display_string(lec))
                 print "<div width=\"100%%\" id=\"%s_link_details\" style=\"display:none\">" % (lid)
-                if ncec > 0:
-                    print "%sCredit - No Credit measurements: %f S with no credit, %s S with credit<br>" % \
-                          (leading(3), link.time_with_no_credit, link.time_with_credit)
+                if lec > 0:
+                    print "%s%.6f S - Elapsed time with no link credit<br>" % \
+                          (leading(5), link.time_with_no_credit)
+                    print "%s%.6f S - Elapsed time with link credit<br>" % \
+                          (leading(5), link.time_with_credit)
+                    print "%s%d - Link credit went to zero<br>" % \
+                          (leading(5), link.credit_went_zero_events)
+                    print "%s%d - Link credit went below zero<br>" % \
+                          (leading(5), link.credit_went_negative_events)
                 idx = 0
                 show_credits = False
                 for frame, proto in link.frame_proto_list:
@@ -2108,10 +2119,14 @@ Generated from PDML on <b>'''
                         leading(4), lid, idx, lozenge(), nbsp())
                     if link.link_credit_history[idx] > 0:
                         show_credits = True
+                    if info.name == "detach":
+                        show_credits = False
                     if show_credits:
                         credit_text = "<i>credit%s%d</i>" % (r_arrow_spaced(), link.link_credit_history[idx])
-                        if link.link_credit_history[idx] <= 0:
+                        if link.link_credit_history[idx] == 0:
                             credit_text = "<span style=\"background-color:yellow\">%s</span>" % credit_text
+                        elif link.link_credit_history[idx] < 0:
+                            credit_text = "<span style=\"background-color:orange\">%s</span>" % credit_text
                     else:
                         credit_text = ""
                     print "Frame: %s %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
@@ -2148,7 +2163,7 @@ Generated from PDML on <b>'''
         protos = packet.findall('proto')
         for proto in protos:
             if proto.get("name") == "amqp":
-                decoded_proto = amqp_decode(proto, global_vars, False)
+                decoded_proto = amqp_decode(proto, global_vars, False, count_anomalies=True)
                 if decoded_proto.name == "transfer":
                     if transfer_first is None:
                         transfer_first = decoded_proto
@@ -2232,21 +2247,28 @@ Generated from PDML on <b>'''
         print "</div>"                                                         # end level:2
         print "</div>"                                                         # end level:1
 
+    # totalize link events
+    le = 0
+    for conn in connection_id_list:
+        conn_detail = conn_details_map[conn]
+        le += conn_detail.GetLinkEventCount()
+
     # post run analysis counts.
     print "<br><h3><a name=\"analysisStats\">Post-run Analysis Statistics</a></h3>"
-    print "<TABLE border=\"1\" summary=\"This table shows counts of interesting or anomalous things found during processing.\">"
+    print "<TABLE border=\"1\" summary=\"This table shows counts of interesting or anomalous things observed during processing.\">"
     print "<CAPTION><EM>Analysis Statistics</EM></CAPTION>"
     print "<TR>"
     print "<TH>Count"
     print "<TH>Description"
     print "</TR>"
     print "<TR><TD><span style=\"background-color:orange\">%d</span><TD>Wireshark TCP Expert Info" % (global_vars.tcp_expert_notices)
-    print "<TR><TD><span style=\"background-color:yellow\">%d</span><TD>AMQP In-Band Detach/End/Close Errors" % (global_vars.highlighted_errors / 2)
-    print "<TR><TD>%d<TD>AMQP Disposition state Accepted" % (global_vars.dispositions_accepted / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Rejected" % (global_vars.dispositions_rejected / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Released" % (global_vars.dispositions_released / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_vars.dispositions_modified / 2)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_vars.dispositions_no_delivery_state / 2)
+    print "<TR><TD><span style=\"background-color:yellow\">%d</span><TD>AMQP In-Band Detach/End/Close Errors" % (global_vars.highlighted_errors)
+    print "<TR><TD>%d<TD>AMQP Disposition state Accepted" % (global_vars.dispositions_accepted)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Rejected" % (global_vars.dispositions_rejected)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Released" % (global_vars.dispositions_released)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_vars.dispositions_modified)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_vars.dispositions_no_delivery_state)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>Link Events" % (le)
     print "</TABLE>"
 
     # shortened names, if any
