@@ -458,6 +458,12 @@ class ConnectionDetail():
         if channel in self.broker_to_client_chan_map:
             del self.broker_to_client_chan_map[channel]
 
+    def GetNoCreditEventCount(self):
+        c = 0
+        for session in self.session_list:
+            c += session.GetNoCreditEventCount()
+        return c
+
 class SessionDetail():
     '''
     Holds facts about a session
@@ -565,6 +571,12 @@ class SessionDetail():
         else:
             self.DetachBrokerHandle(handle)
 
+    def GetNoCreditEventCount(self):
+        c = 0
+        for link in self.link_list:
+            c += link.GetNoCreditEventCount()
+        return c
+
 class LinkDetail():
     '''
     Holds facts about a link endpoint
@@ -599,6 +611,14 @@ class LinkDetail():
         self.link_credit = 0
         self.link_credit_history = []
 
+        self.credit_went_zero_events = 0
+        self.credit_went_negative_events = 0
+
+        self.credit_timing_in_progress = False
+        self.credit_timer = 0.0 # running with non-zero
+        self.time_with_no_credit = 0.0
+        self.time_with_credit = 0.0
+
     def GetId(self):
         return self.session_detail.GetId() + "_" + str(self.session_seq)
 
@@ -608,7 +628,8 @@ class LinkDetail():
     def ProtoCount(self):
         return len(self.frame_proto_list)
 
-
+    def GetNoCreditEventCount(self):
+        return self.credit_went_zero_events
 #
 #
 class ShortNames():
@@ -895,6 +916,20 @@ def field_show_value_or_null(field):
     else:
         return field.get('show')
 
+
+def get_credit_display_string(event_count):
+    '''
+    Generate the title display string for the given credit events value.
+    Highlight positive count, hide zero count
+    :param credit:
+    :return:
+    '''
+    result = ""
+    if event_count > 0:
+        result = "<span style=\"background-color:yellow\">LinkCredit: %d</span>" % event_count
+    return result
+
+
 def get_performative_name(proto):
     '''
     Given a proto, return the performative name
@@ -986,6 +1021,7 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                 channel = proto.find("./field[@name='amqp.channel']").get("show")
                 assert channel is not None and len(channel) > 0, "amqp proto must have a channel"
                 args = proto.find("./field[@name='amqp.method.arguments']")
+                frame_time = float(frame_time_relative(frame))
                 if pname == 'begin':
                     # session establishment
                     remote = args.find("./field[@name='amqp.performative.arguments.remoteChannel']")
@@ -1154,6 +1190,15 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     nl.time_end = frame_time_relative(frame)
                     nl.link_credit_history.append(nl.link_credit)
 
+                    # shut off link timers on first detach
+                    if nl.credit_timer > 0.0:
+                        # was running. apply trailing time accumulation
+                        if nl.link_credit > 0:
+                            nl.time_with_credit += frame_time - nl.credit_timer
+                        else:
+                            nl.time_with_no_credit += frame_time - nl.credit_timer
+                        nl.credit_timer = 0.0
+
                 elif pname == 'flow':
                     ns = conn_details.FindSession(channel, dst_is_broker)
                     if ns is None:
@@ -1215,9 +1260,30 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     if afc:
                         credit = args.find("./field[@name='amqp.performative.arguments.linkCredit']").get("show")
                         credit = int(credit)
+                        if credit > 0:
+                            # positive non-zero credit is granted
+                            if not nl.credit_timing_in_progress:
+                                # this is the first credit to come along
+                                nl.credit_timing_in_progress = True
+                                nl.credit_timer = frame_time
+                            else:
+                                # timer is running
+                                if nl.link_credit > 0:
+                                    # already had credit and still do
+                                    pass
+                                else:
+                                    # had no credit and now have some
+                                    nl.time_with_no_credit += frame_time - nl.credit_timer
+                                    nl.credit_timer = frame_time # timer is measuring with-credit state
+                        else:
+                            # no credit granted. Who would do this?
+                            pass
+
                         nl.link_credit = credit
 
                     nl.link_credit_history.append(nl.link_credit)
+
+
 
                 elif pname == 'transfer':
 
@@ -1241,6 +1307,14 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     # account for credit
                     nl.link_credit -= 1
                     nl.link_credit_history.append(nl.link_credit)
+                    if nl.link_credit == -1:
+                        # in-flight transfers arriving after credit exhaustion
+                        nl.credit_went_negative_events += 1
+                    if nl.link_credit == 0:
+                        # link had credit and now has none
+                        nl.credit_went_zero_events += 1
+                        nl.time_with_credit += frame_time - nl.credit_timer
+                        nl.credit_timer = frame_time   # timer is measuring no-credit state
 
                 else:
                     # other performatives: using the channel in due course
@@ -1942,7 +2016,8 @@ Generated from PDML on <b>'''
         conn_detail = conn_details_map[conn]
         print "<a href=\"javascript:toggle_node('%s_sessions')\">%s%s</a>" % (conn, lozenge(), nbsp())
         print "<font color=\"%s\">" % conn_id_to_color_map[ conn ]
-        print "%s</font>%s%s(nFrames=%d)<br>" % (conn_id_to_name_map[conn], nbsp(), nbsp(), conn_frame_count[conn])
+        print "%s</font>%s%s(nFrames=%d) %s<br>" % (conn_id_to_name_map[conn], nbsp(), nbsp(), conn_frame_count[conn], \
+                                                    get_credit_display_string(conn_detail.GetNoCreditEventCount()))
         # sessions div
         print "<div width=\"100%%\" id=\"%s_sessions\" style=\"display:none\">" % conn
 
@@ -1973,9 +2048,9 @@ Generated from PDML on <b>'''
             print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (sid, nbsp())
             # This lozenge shows/hides session details
             print "<a href=\"javascript:toggle_node('%s_ssn_details')\">%s%s</a>" % (sid, lozenge(), nbsp())
-            print "Session %s: Channels: client: %s, server: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d<br>" % \
+            print "Session %s: Channels: client: %s, server: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d %s<br>" % \
                   (session.conn_epoch, session.client_chan, session.broker_chan, session.time_start, session.time_end, \
-                   session.FrameCount(), session.ProtoCount())
+                   session.FrameCount(), session.ProtoCount(), get_credit_display_string(session.GetNoCreditEventCount()))
             print "<div width=\"100%%\" id=\"%s_ssn_details\" style=\"display:none\">" % (sid)
 
             # This lozenge shows/hides the session performatives not part of any link
@@ -2009,19 +2084,32 @@ Generated from PDML on <b>'''
                 print "checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\">%s" % (lid, nbsp())
                 # This lozenge shows/hides link details
                 print "<a href=\"javascript:toggle_node('%s_link_details')\">%s%s</a>" % (lid, lozenge(), nbsp())
-                print "Link %s: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d<br>" % \
+                ncec = link.GetNoCreditEventCount()
+                print "Link %s: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d %s<br>" % \
                       (link.session_seq, info, link.time_start, link.time_end, \
-                       link.FrameCount(), link.ProtoCount())
+                       link.FrameCount(), link.ProtoCount(), get_credit_display_string(ncec))
                 print "<div width=\"100%%\" id=\"%s_link_details\" style=\"display:none\">" % (lid)
+                if ncec > 0:
+                    print "%sCredit - No Credit measurements: %f S with no credit, %s S with credit<br>" % \
+                          (leading(3), link.time_with_no_credit, link.time_with_credit)
                 idx = 0
+                show_credits = False
                 for frame, proto in link.frame_proto_list:
                     info = amqp_decode(proto, global_vars)
                     dir_arrow = r_arrow_str() if connection_dst_is_broker(frame, global_vars) else l_arrow_str()
                     # This lozenge shows/hides performative details
                     print "%s<a href=\"javascript:toggle_node('%s_link_perf_%d_details')\">%s%s</a>" % (
                         leading(4), lid, idx, lozenge(), nbsp())
-                    print "Frame: %s %s %s %s <i>credit%s%d</i><br>" % (frame_num_str(frame), frame_time_relative((frame)),
-                                                      dir_arrow, info.web_show_str, r_arrow_spaced(), link.link_credit_history[idx])
+                    if link.link_credit_history[idx] > 0:
+                        show_credits = True
+                    if show_credits:
+                        credit_text = "<i>credit%s%d</i>" % (r_arrow_spaced(), link.link_credit_history[idx])
+                        if link.link_credit_history[idx] <= 0:
+                            credit_text = "<span style=\"background-color:yellow\">%s</span>" % credit_text
+                    else:
+                        credit_text = ""
+                    print "Frame: %s %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
+                                                      dir_arrow, info.web_show_str, credit_text)
                     print "<div width=\"100%%\" id=\"%s_link_perf_%d_details\" style=\"display:none\">" % (
                         lid, idx)
                     show_fields(proto, 5)
