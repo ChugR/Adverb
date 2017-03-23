@@ -79,6 +79,7 @@ import sys
 import xml.etree.ElementTree as ET
 import time
 import os
+import traceback
 
 def amqp_port_str():
     '''
@@ -1692,7 +1693,7 @@ def main_except(argv):
         amqp_frame = packet.find("./proto[@name='amqp']")
         if amqp_frame is not None:
             amqp_packets.append(packet)
-        
+
     # calculate a list of connections and a map
     # of {internal name: formal display name}
     connection_id_list = []
@@ -2340,7 +2341,8 @@ def main(argv):
     except ExitStatus, e:
         return e.status
     except Exception, e:
-        print "%s: %s"%(type(e).__name__, e)
+        type, value, tb = sys.exc_info()
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
