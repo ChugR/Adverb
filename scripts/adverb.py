@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 4.0
+# Version 4.1
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -355,6 +355,9 @@ class PerformativeInfo():
         self.target = ""
         self.first = ""            # undecorated number - '10'
         self.last = ""             # undecorated number - '20'
+        self.settled = ""          # Disposition or Transfer settled field
+        self.snd_settle_mode = ""  # Attach
+        self.rcv_settle_mode = ""  # Attach
         self.transfer_data = ""    # dehexified transfer data value
 
     def __repr__(self):
@@ -380,6 +383,7 @@ class PerformativeInfo():
         all_lines.append("target : '%s'" % self.target)
         all_lines.append("first : '%s'" % self.first)
         all_lines.append("last : '%s'" % self.last)
+        all_lines.append("settled : '%s'" % self.settled)
         all_lines.append("transfer_data : '%s'" % self.transfer_data)
         return ('\n'.join(all_lines))
 
@@ -516,6 +520,14 @@ class SessionDetail():
         # properly in link processing
         self.unaccounted_frame_proto_list = []
 
+        # Session dispositions
+        # dict[delivery-id] = ['disp info 0', 'disp info 1', ...]
+        self.dispositions_l2r = {} # client to broker
+        self.dispositions_r2l = {} # broker to client
+        # summary is appended to transfer display lines
+        self.disposition_summary_l2r = {} # client to broker
+        self.disposition_summary_r2l = {} # broker to client
+
     def FrameCount(self):
         count = 0
         for link in self.link_list:
@@ -612,6 +624,9 @@ class LinkDetail():
 
         self.originated_by_client = True
         self.originator_is_receiver = True
+
+        self.snd_settle_mode = ''
+        self.rcv_settle_mode = ''
 
         self.receiver_source = "none"
         self.sender_target = "none"
@@ -988,7 +1003,9 @@ def extract_name(three_words):
     # the showname attribute is too verbose and redundant.
     # This function gets the second word of the showname attribute for display.
     words = three_words.split()
-    return words[1]
+    if len(words) >= 2:
+        return words[1]
+    return three_words
 
 def safe_field_attr_extract(object, fieldname, attrname, default):
     '''
@@ -1110,6 +1127,7 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                         conn_details.unaccounted_frame_proto_list.append((frame, proto))
                         continue
 
+                    pi = amqp_decode(proto, global_vars)
                     args = proto.find("./field[@name='amqp.method.arguments']")
 
                     link_name_field = args.find("./field[@name='amqp.performative.arguments.name']")
@@ -1161,6 +1179,12 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
 
                         nl.receiver_source = source
                         nl.sender_target = target
+                        # link creator sets settle modes?
+                        # sender link creator sets definitive snd mode, begs for rcv mode
+                        #   peer link creator does best effort for other half
+                        # these are the proposed settle modes
+                        nl.rcv_settle_mode = pi.rcv_settle_mode
+                        nl.snd_settle_mode = pi.snd_settle_mode
 
                     else:
                         if dst_is_broker:
@@ -1170,6 +1194,20 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                             ns.broker_to_client_link_map[handle] = nl
                             nl.broker_handle = handle
 
+                        if role_is_receiver:
+                            if nl.snd_settle_mode != pi.snd_settle_mode:
+                                nl.snd_settle_mode += ' (modified?)'
+                            if nl.rcv_settle_mode == pi.rcv_settle_mode:
+                                nl.rcv_settle_mode = pi.rcv_settle_mode
+                            else:
+                                nl.rcv_settle_mode = pi.rcv_settle_mode + ' (overridden)'
+                        else:
+                            if nl.rcv_settle_mode != pi.rcv_settle_mode:
+                                nl.rcv_settle_mode += ' (modofied)'
+                            if nl.snd_settle_mode == pi.snd_settle_mode:
+                                nl.snd_settle_mode = pi.snd_settle_mode
+                            else:
+                                nl.snd_settle_mode = pi.snd_settle_mode + ' (overridden)'
 
                     if frame not in nl.frame_list:
                         nl.frame_list.append(frame)
@@ -1179,7 +1217,7 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     nl.link_credit_history.append(nl.link_credit)
 
                 elif pname == 'detach':
-                    # Find the session
+                    # Find the sessionframe_id
                     ns = conn_details.FindSession(channel, dst_is_broker)
                     if ns is None:
                         conn_details.unaccounted_frame_proto_list.append((frame, proto))
@@ -1328,6 +1366,69 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                         nl.time_with_credit += frame_time - nl.credit_timer
                         nl.credit_timer = frame_time   # timer is measuring no-credit state
 
+                elif pname == "disposition":
+                    ns = conn_details.FindSession(channel, dst_is_broker)
+                    if ns is None:
+                        conn_details.unaccounted_frame_proto_list.append((frame, proto))
+                        continue
+                    # put proto into session frame list despite upcoming accounting
+                    if frame not in ns.frame_list:
+                        ns.frame_list.append(frame)
+                    ns.frame_proto_list.append((frame,proto))
+
+                    # delivery state
+                    dstate = "no-delivery-state"
+                    state = args.find("./field[@name='amqp.delivery-state.accepted']")
+                    if not state is None:
+                        dstate = "accepted"
+                    else:
+                        state = args.find("./field[@name='amqp.delivery-state.rejected']")
+                        if not state is None:
+                            dstate = "rejected"
+                        else:
+                            state = args.find("./field[@name='amqp.delivery-state.released']")
+                            if not state is None:
+                                dstate = "released"
+                            else:
+                                state = args.find("./field[@name='amqp.delivery-state.modified']")
+                                if not state is None:
+                                    dstate = "modified"
+
+                    pi = amqp_decode(proto, global_vars)
+                    fnum = frame_num(frame)
+                    dirarrow = r_arrow_str() if dst_is_broker else l_arrow_str()
+                    i_start = int(pi.first)
+                    if pi.last == 'null':
+                        i_end = i_start
+                    else:
+                        i_end = int(pi.last)
+
+                    # Choose where this disposition applies
+                    # a normal disposition is a 'receiver' sending a disp back to a sender
+                    #   this type applies to the opposite direction of the original transfer
+                    # a 'receive settle second' disposition is the sender sending a disp
+                    #   in the same direction as the initial transfer
+
+                    for i in range(i_start, i_end+1):
+                        if dst_is_broker == (pi.role == 'receiver'):
+                            if not i in ns.dispositions_l2r:
+                                ns.dispositions_l2r[i] = []
+                                ns.disposition_summary_l2r[i] = ""
+                            info = "disposition id:%d  %.6f Frame: %d %s role: %s, settled: %s, %s" % \
+                                   (i, frame_time, fnum, dirarrow, pi.role, pi.settled, dstate)
+                            ns.dispositions_l2r[i].append(info)
+                            info = "(DISP:%s settled:%s, %s)" % (dirarrow, pi.settled, dstate)
+                            ns.disposition_summary_l2r[i] += info
+                        else:
+                            if not i in ns.dispositions_r2l:
+                                ns.dispositions_r2l[i] = []
+                                ns.disposition_summary_r2l[i] = ""
+                            info = "disposition id:%d  %.6f Frame: %d %s role: %s, settled: %s, %s" % \
+                                   (i, frame_time, fnum, dirarrow, pi.role, pi.settled, dstate)
+                            ns.dispositions_r2l[i].append(info)
+                            info = "(DISP:%s settled:%s, %s)" % (dirarrow, pi.settled, dstate)
+                            ns.disposition_summary_r2l[i] += info
+
                 else:
                     # other performatives: using the channel in due course
                     ns = conn_details.FindSession(channel, dst_is_broker)
@@ -1448,7 +1549,9 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=Fals
         tmpname     = args.find("./field[@name='amqp.performative.arguments.name']")
         tmpsrc      = args.find("./field[@name='amqp.performative.arguments.source']")
         tmptgt      = args.find("./field[@name='amqp.performative.arguments.target']")
-        name        = None
+        tmpssm      = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.sndSettleMode']", "showname", "mixed")
+        tmprsm      = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.rcvSettleMode']", "showname", "first")
+
         src         = None
         tgt         = None
         if tmpsrc is not None:
@@ -1472,6 +1575,12 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=Fals
         name               = short_link_names.translate(name)
         res.source         = short_endp_names.translate(res.source)
         res.target         = short_endp_names.translate(res.target)
+        res.snd_settle_mode= extract_name(tmpssm)
+        res.rcv_settle_mode= extract_name(tmprsm)
+        if res.snd_settle_mode == 'null':
+            res.snd_settle_mode = 'mixed'
+        if res.rcv_settle_mode == 'null':
+            res.rcv_settle_mode = 'first'
         res.web_show_str   = ("<strong>%s</strong> %s %s %s (source: %s, target: %s)" %
                               (res.name, colorize_bg(res.channel_handle), res.role, name, res.source, res.target))
 
@@ -1508,6 +1617,8 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=Fals
         res.delivery_tag= extract_name(delivery_tag)
         transfer_id     = args.find("./field[@name='amqp.performative.arguments.deliveryId']").get("showname")
         res.transfer_id = extract_name(transfer_id)
+        settled     = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.settled']", "showname", "false")
+        res.settled = extract_name(settled)
         res.name        = "transfer"
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
         res.web_show_str  = "<strong>%s</strong>  %s (%s)" % (res.name, colorize_bg(res.channel_handle), res.transfer_id)
@@ -1521,8 +1632,10 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=Fals
         role        = args.find("./field[@name='amqp.performative.arguments.role']").get("showname")
         first       = args.find("./field[@name='amqp.performative.arguments.first']").get("showname")
         last        = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.last']", "showname", first)
+        settled     = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.settled']", "showname", "false")
         res.first   = extract_name(first)
         res.last    = extract_name(last)
+        res.settled = extract_name(settled)
         res.name    = "disposition"
         colorize_dispositions_not_accepted(proto, res, global_vars, count_anomalies)
         res.role    = extract_name(role)
@@ -2035,7 +2148,7 @@ Generated from PDML on <b>'''
 
         # This lozenge shows/hides the connection performatives not part of any session
         print "%s<a href=\"javascript:toggle_node('%s_conn_unaccounted')\">%s%s</a>" % (leading(2), conn, lozenge(), nbsp())
-        print "Performatives not part of any session<br>"
+        print "Connection-based Performatives<br>"
         print "<div width=\"100%%\" id=\"%s_conn_unaccounted\" style=\"display:none\">" % conn
         idx = 0
         for frame, proto in conn_detail.unaccounted_frame_proto_list:
@@ -2068,7 +2181,7 @@ Generated from PDML on <b>'''
             # This lozenge shows/hides the session performatives not part of any link
             print "%s%s<a href=\"javascript:toggle_node('%s_sess_unaccounted')\">%s%s</a>" % (
                 leading(2), nbsp() * 2, sid, lozenge(), nbsp())
-            print "Performatives not part of any link<br>"
+            print "Session-based Performatives<br>"
             print "<div width=\"100%%\" id=\"%s_sess_unaccounted\" style=\"display:none\">" % sid
             idx = 0
             for frame,proto in session.frame_proto_list:
@@ -2097,8 +2210,9 @@ Generated from PDML on <b>'''
                 # This lozenge shows/hides link details
                 print "<a href=\"javascript:toggle_node('%s_link_details')\">%s%s</a>" % (lid, lozenge(), nbsp())
                 lec = link.GetLinkEventCount()
-                print "Link %s: %s; Time: start %s, end %s; Counts: frames: %d, performatives: %d %s<br>" % \
+                print "Link %s: %s; Time: start %s, end %s; SettleModes snd: %s, rcv: %s; Counts: frames: %d, performatives: %d %s<br>" % \
                       (link.session_seq, info, link.time_start, link.time_end, \
+                       link.snd_settle_mode, link.rcv_settle_mode, \
                        link.FrameCount(), link.ProtoCount(), get_link_event_display_string(lec))
                 print "<div width=\"100%%\" id=\"%s_link_details\" style=\"display:none\">" % (lid)
                 if lec > 0:
@@ -2118,6 +2232,7 @@ Generated from PDML on <b>'''
                     # This lozenge shows/hides performative details
                     print "%s<a href=\"javascript:toggle_node('%s_link_perf_%d_details')\">%s%s</a>" % (
                         leading(4), lid, idx, lozenge(), nbsp())
+                    # sort out credits
                     if link.link_credit_history[idx] > 0:
                         show_credits = True
                     if info.name == "detach":
@@ -2130,10 +2245,34 @@ Generated from PDML on <b>'''
                             credit_text = "<span style=\"background-color:orange\">%s</span>" % credit_text
                     else:
                         credit_text = ""
-                    print "Frame: %s %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
-                                                      dir_arrow, info.web_show_str, credit_text)
+                    # sort out transfer/disposition settlement
+                    dst_is_broker = connection_dst_is_broker(frame, global_vars)
+                    show_disposition_info = (info.name == "transfer")
+                    disp_hint = ""
+                    if show_disposition_info:
+                        did = int(info.delivery_id)
+                        # if the transfer is TO the broker then the dispositions we want are FROM the broker
+                        disp_hint = "{(txSettled: %s)}" % (info.settled)
+                        if dst_is_broker:
+                            if did in session.disposition_summary_r2l:
+                                disp_hint = "{(txSettled: %s) %s}" % (info.settled, session.disposition_summary_r2l[did])
+                        else:
+                            if did in session.disposition_summary_l2r:
+                                disp_hint = "{(txSettled: %s) %s}" % (info.settled, session.disposition_summary_l2r[did])
+
+                    print "Frame: %s %s %s %s %s %s<br>" % (frame_num_str(frame), frame_time_relative((frame)),
+                                                      dir_arrow, info.web_show_str, credit_text, disp_hint)
                     print "<div width=\"100%%\" id=\"%s_link_perf_%d_details\" style=\"display:none\">" % (
                         lid, idx)
+                    if show_disposition_info:
+                        if dst_is_broker:
+                            if did in session.dispositions_r2l:
+                                for disp in session.dispositions_r2l[did]:
+                                    print "%s%s<br>" % (leading(5), disp)
+                        else:
+                            if did in session.dispositions_l2r:
+                                for disp in session.dispositions_l2r[did]:
+                                    print "%s%s<br>" % (leading(5), disp)
                     show_fields(proto, 5)
                     print "</div>"
                     idx += 1
