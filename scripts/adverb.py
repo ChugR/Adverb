@@ -80,6 +80,7 @@ import xml.etree.ElementTree as ET
 import time
 import os
 import traceback
+#import pdb
 
 def amqp_port_str():
     '''
@@ -234,6 +235,7 @@ class GlobalVars():
         self.dispositions_modified = 0
         self.dispositions_no_delivery_state = 0
         self.broker_ports_list = []
+        self.malformed_amqp_packets = []
 
 #
 # Detect and return colorized tcp expert warning
@@ -1611,11 +1613,12 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=Fals
         args            = proto.find("./field[@name='amqp.method.arguments']")
         handle          = args.find("./field[@name='amqp.performative.arguments.handle']").get("showname")
         res.handle      = extract_name(handle)
-        delivery_id     = args.find("./field[@name='amqp.performative.arguments.deliveryId']").get("showname")
+
+        delivery_id     = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.deliveryId']", "showname", "none")
         res.delivery_id = extract_name(delivery_id)
-        delivery_tag    = args.find("./field[@name='amqp.performative.arguments.deliveryTag']").get("showname")
+        delivery_tag    = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.deliveryTag']", "showname", "none")
         res.delivery_tag= extract_name(delivery_tag)
-        transfer_id     = args.find("./field[@name='amqp.performative.arguments.deliveryId']").get("showname")
+        transfer_id     = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.deliveryId']", "showname", "none")
         res.transfer_id = extract_name(transfer_id)
         settled     = safe_field_attr_extract(args, "./field[@name='amqp.performative.arguments.settled']", "showname", "false")
         res.settled = extract_name(settled)
@@ -1735,7 +1738,6 @@ def show_flow_list(title, flow_list, label):
 #
 #
 def main_except(argv):
-    import pdb
     #pdb.set_trace()
     """Given a pdml file name, send the javascript web page to stdout"""
     if len(sys.argv) < 5:
@@ -1800,12 +1802,22 @@ def main_except(argv):
         except:
             pass
 
-    # select only AMQP packets
+    # select only well-formed AMQP packets
     amqp_packets = []
     for packet in packets:
         amqp_frame = packet.find("./proto[@name='amqp']")
-        if amqp_frame is not None:
-            amqp_packets.append(packet)
+        if __name__ == '__main__':
+            if amqp_frame is not None:
+                # Don't try to decode packets that have malformed AMQP
+                mal_frame = packet.find("./proto[@name='_ws.malformed']")
+                if mal_frame is None:
+                    amqp_packets.append(packet)
+                else:
+                    # The other protos in this frame are likely to be
+                    # profoundly out-of-spec and cause parse errors
+                    # throughout this program. Log skip them.
+                    global_vars.malformed_amqp_packets.append(packet)
+
 
     # calculate a list of connections and a map
     # of {internal name: formal display name}
@@ -2247,7 +2259,7 @@ Generated from PDML on <b>'''
                         credit_text = ""
                     # sort out transfer/disposition settlement
                     dst_is_broker = connection_dst_is_broker(frame, global_vars)
-                    show_disposition_info = (info.name == "transfer")
+                    show_disposition_info = (info.name == "transfer" and info.delivery_id != 'none')
                     disp_hint = ""
                     if show_disposition_info:
                         did = int(info.delivery_id)
@@ -2409,6 +2421,7 @@ Generated from PDML on <b>'''
     print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_vars.dispositions_modified)
     print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_vars.dispositions_no_delivery_state)
     print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>Link Events" % (le)
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>Malformed AMQP frames Not Shown" % (len(global_vars.malformed_amqp_packets))
     print "</TABLE>"
 
     # shortened names, if any
