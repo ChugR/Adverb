@@ -1149,12 +1149,12 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     if role_is_receiver:
                         source_field = args.find("./field[@name='amqp.performative.arguments.source']")
                         if source_field is not None: # "Source required for receiver"?
-                            address_field = source_field.find("./field[@name='amqp.performative.arguments.address']")
+                            address_field = source_field.find("./field[@name='amqp.performative.arguments.address.string']")
                             source = address_field.get('show') if address_field is not None else "none"
                     else:
                         target_field = args.find("./field[@name='amqp.performative.arguments.target']")
                         if target_field is not None: # "Target required for sender"?
-                            address_field = target_field.find("./field[@name='amqp.performative.arguments.address']")
+                            address_field = target_field.find("./field[@name='amqp.performative.arguments.address.string']")
                             target = address_field.get('show') if address_field is not None else "none"
 
                     nl = ns.FindLinkByName(link_name)
@@ -2222,8 +2222,8 @@ Generated from PDML on <b>'''
                 # This lozenge shows/hides link details
                 print "<a href=\"javascript:toggle_node('%s_link_details')\">%s%s</a>" % (lid, lozenge(), nbsp())
                 lec = link.GetLinkEventCount()
-                print "Link %s: %s; Time: start %s, end %s; SettleModes snd: %s, rcv: %s; Counts: frames: %d, performatives: %d %s<br>" % \
-                      (link.session_seq, info, link.time_start, link.time_end, \
+                print "Link %s: %s %s; Time: start %s, end %s; SettleModes snd: %s, rcv: %s; Counts: frames: %d, performatives: %d %s<br>" % \
+                      (link.session_seq, short_link_names.translate(link.name), info, link.time_start, link.time_end, \
                        link.snd_settle_mode, link.rcv_settle_mode, \
                        link.FrameCount(), link.ProtoCount(), get_link_event_display_string(lec))
                 print "<div width=\"100%%\" id=\"%s_link_details\" style=\"display:none\">" % (lid)
