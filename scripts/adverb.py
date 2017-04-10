@@ -737,17 +737,20 @@ def process_port_args(ostring, global_vars):
 #
 #
 def is_broker_a(a, b, global_vars):
-    """Given two ports guess if 'a' is the broker port"""
-    a_is_broker = True
-    if a == amqp_port_int() or str(a) in global_vars.broker_ports_list:
-        a_is_broker = True
-    elif b == amqp_port_int() or str(b) in global_vars.broker_ports_list:
-        a_is_broker = False
-    elif a < b:
-        a_is_broker = True
-    else:
-        a_is_broker = False
-    return a_is_broker
+    """Given two integer ports guess if 'a' is the broker/server port"""
+    # 5672 is the 'server' address
+    if a == amqp_port_int():
+        return True
+    if b == amqp_port_int():
+        return False
+    # If only one or the other is in the current lookup then
+    # ports given in command line identify other broker/server ports
+    a_in_list = str(a) in global_vars.broker_ports_list
+    b_in_list = str(b) in global_vars.broker_ports_list
+    if a_in_list != b_in_list:
+        return a_in_list
+    # If both or neither are in the command line list then the lower port wins by guess
+    return a < b
 
 #
 #

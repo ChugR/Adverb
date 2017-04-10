@@ -126,9 +126,13 @@ def main_except(argv):
                 if line.find("414d5150") > 0:
                     if dst not in portlist and src not in portlist:
                         portlist.append(dst.replace('\"',''))
+                        portlist.append(src.replace('\"', ''))
                     src=""
                     dst=""
         portlist = filter(None, portlist)
+        portintlist = [int(x) for x in portlist]
+        portintlist = sorted(set(portintlist))
+        portlist = [str(x) for x in portintlist]
         print ("AMQP Ports: ", portlist)
     
     # convert .pcapng to -amqp.pdml
