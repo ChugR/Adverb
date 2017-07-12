@@ -21,10 +21,6 @@ function installFunc {
     cp ./scripts/html/adverb.html      /var/www/html/adverb.html
     cp ./scripts/cgi-bin/adverb-cgi.py /var/www/cgi-bin/adverb-cgi.py
     cp ./scripts/adverb.py             /var/www/cgi-bin/adverb/scripts/adverb.py
-
-    #chcon -t httpd_sys_content_t            /var/www/html/adverb.html
-    #chcon -t httpd_unconfined_script_exec_t /var/www/cgi-bin/adverb-cgi.py
-    #chcon -t httpd_unconfined_script_exec_t /var/www/cgi-bin/adverb/scripts/adverb.py
 }
 
 function getFunc {
