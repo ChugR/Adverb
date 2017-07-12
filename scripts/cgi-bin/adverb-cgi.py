@@ -2,6 +2,7 @@
 #
 # Adverb Version 3.0
 
+import sys
 import os
 import cgi, cgitb
 import tempfile
