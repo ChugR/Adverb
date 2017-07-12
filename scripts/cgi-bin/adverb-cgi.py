@@ -61,7 +61,7 @@ for aSel in hisSelectors:
         selectors.append("tcp.port==" + aSel + ",amqp")
 
 # cd into adverb/bin work dir
-os.chdir(workdir)
+# os.chdir(workdir)
 
 # convert .pcapng to .pdml
 #
@@ -127,7 +127,7 @@ f_stderr = open(advStderrFn, 'w')
 
 # generate adverb command line
 args = []
-args.append("../scripts/adverb.py")
+args.append("./adverb/scripts/adverb.py")
 args.append(tsStdoutFn)
 args.append(fileitem.filename)
 args.append(formSelectors)
