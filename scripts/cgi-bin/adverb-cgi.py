@@ -7,6 +7,8 @@ import cgi, cgitb
 import tempfile
 import subprocess
 
+cgitb.enable()
+
 def print_file(filename):
     statinfo = os.stat(filename)
     print "File: %s, size = %s, contents:" % (filename, statinfo.st_size)
@@ -58,7 +60,7 @@ for aSel in hisSelectors:
         selectors.append("tcp.port==" + aSel + ",amqp")
 
 # cd into adverb/bin work dir
-os.chdir("adverb/bin")
+os.chdir(workdir)
 
 # convert .pcapng to .pdml
 #
