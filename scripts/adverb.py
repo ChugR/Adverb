@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 4.1
+# Version 4.2
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -642,6 +642,7 @@ class LinkDetail():
 
         self.credit_went_zero_events = 0
         self.credit_went_negative_events = 0
+        self.message_aborted_events = 0
 
         self.credit_timing_in_progress = False
         self.credit_timer = 0.0 # running with non-zero
@@ -658,7 +659,7 @@ class LinkDetail():
         return len(self.frame_proto_list)
 
     def GetLinkEventCount(self):
-        return self.credit_went_zero_events + self.credit_went_negative_events
+        return self.credit_went_zero_events + self.credit_went_negative_events + self.message_aborted_events
 #
 #
 class ShortNames():
@@ -1360,16 +1361,34 @@ def amqp_discover_inner_workings(frames, conn_details_map, global_vars):
                     nl.time_end = frame_time_relative(frame)
 
                     # account for credit
-                    nl.link_credit -= 1
+                    count_credit = False
+                    v_more = args.find("./field[@name='amqp.performative.arguments.more']")
+                    if not v_more is None:
+                        vv_more = v_more.get("show")
+                        if vv_more == '1':
+                            pass   # more is true: don't count this transfer against credit
+                        else:
+                            count_credit = True
+
+                    v_aborted = args.find("./field[@name='amqp.performative.arguments.aborted']")
+                    if not v_aborted is None:
+                        vv_aborted = v_aborted.get("show")
+                        if vv_aborted == '1':
+                            # tranfer is aborted
+                            count_credit = True
+                            nl.message_aborted_events += 1
+
+                    if count_credit:
+                        nl.link_credit -= 1
+                        if nl.link_credit == -1:
+                            # in-flight transfers arriving after credit exhaustion
+                            nl.credit_went_negative_events += 1
+                        if nl.link_credit == 0:
+                            # link had credit and now has none
+                            nl.credit_went_zero_events += 1
+                            nl.time_with_credit += frame_time - nl.credit_timer
+                            nl.credit_timer = frame_time   # timer is measuring no-credit state
                     nl.link_credit_history.append(nl.link_credit)
-                    if nl.link_credit == -1:
-                        # in-flight transfers arriving after credit exhaustion
-                        nl.credit_went_negative_events += 1
-                    if nl.link_credit == 0:
-                        # link had credit and now has none
-                        nl.credit_went_zero_events += 1
-                        nl.time_with_credit += frame_time - nl.credit_timer
-                        nl.credit_timer = frame_time   # timer is measuring no-credit state
 
                 elif pname == "disposition":
                     ns = conn_details.FindSession(channel, dst_is_broker)
@@ -1627,7 +1646,12 @@ def amqp_decode(proto, global_vars, arg_display_xfer=False, count_anomalies=Fals
         res.settled = extract_name(settled)
         res.name        = "transfer"
         res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
-        res.web_show_str  = "<strong>%s</strong>  %s (%s)" % (res.name, colorize_bg(res.channel_handle), res.transfer_id)
+        v_aborted = args.find("./field[@name='amqp.performative.arguments.aborted']")
+        aborted = ""
+        if not v_aborted is None:
+            vv_aborted = v_aborted.get("show")
+            aborted = " <span style=\"background-color:yellow\">aborted</span>" if vv_aborted == '1' else ""
+        res.web_show_str  = "<strong>%s</strong>  %s (%s) %s" % (res.name, colorize_bg(res.channel_handle), res.transfer_id, aborted)
         if arg_display_xfer:
             res.transfer_data = get_transfer_data(proto)
 
