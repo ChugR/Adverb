@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Version 4.2
+# Version 4.3
 
 #
 # Licensed to the Apache Software Foundation (ASF) under one
@@ -396,10 +396,11 @@ class PerformativeInfo():
             return False
         if not self.handle == candidate.handle:
             return False
-        nextTransferId = (int)(self.transfer_id) + 1
-        if not nextTransferId == (int)(candidate.transfer_id):
+        try:
+            nextTransferId = (int)(self.transfer_id) + 1
+        except:
             return False
-        return True
+        return nextTransferId == (int)(candidate.transfer_id)
 
     def showTransferRange(self, transfer_last):
         if transfer_last is None:
