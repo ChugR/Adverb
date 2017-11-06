@@ -1830,22 +1830,21 @@ def main_except(argv):
         except:
             pass
 
-    # select only well-formed AMQP packets
+    # select AMQP packets
     amqp_packets = []
     for packet in packets:
         amqp_frame = packet.find("./proto[@name='amqp']")
         if __name__ == '__main__':
             if amqp_frame is not None:
-                # Don't try to decode packets that have malformed AMQP
+                # Decoding malformed AMQP frames is risky.
+                # Wireshark calls many packets malformed when they are fine
+                # and hiding them is not great. On the other hand, some
+                # malformed frames can not be decoded. For now, accept all
+                # frames and fix the decoders as the errors show up.
                 mal_frame = packet.find("./proto[@name='_ws.malformed']")
-                if mal_frame is None:
-                    amqp_packets.append(packet)
-                else:
-                    # The other protos in this frame are likely to be
-                    # profoundly out-of-spec and cause parse errors
-                    # throughout this program. Log skip them.
+                if not mal_frame is None:
                     global_vars.malformed_amqp_packets.append(packet)
-
+                amqp_packets.append(packet)
 
     # calculate a list of connections and a map
     # of {internal name: formal display name}
@@ -2449,7 +2448,7 @@ Generated from PDML on <b>'''
     print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Modified" % (global_vars.dispositions_modified)
     print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>AMQP Disposition state Not Specified" % (global_vars.dispositions_no_delivery_state)
     print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>Link Events" % (le)
-    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>Malformed AMQP frames Not Shown" % (len(global_vars.malformed_amqp_packets))
+    print "<TR><TD><span style=\"background-color:gold\">%d</span><TD>Malformed AMQP frames" % (len(global_vars.malformed_amqp_packets))
     print "</TABLE>"
 
     # shortened names, if any
