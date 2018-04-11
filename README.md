@@ -62,7 +62,7 @@ If your local system has Wireshark installed then you are good to go.
 
 ## Example
 
-An [example](http://htmlpreview.github.io/?https://github.com/ChugR/Adverb/blob/master/example/helloworld.html) is included. It is a trace of a simple HelloWorld staged for tutorial purposes. Take a look.
+An [example](http://htmlpreview.github.io/?https://github.com/ChugR/Adverb/blob/master/example/helloworld.html) is included. It is a trace of a simple HelloWorld staged for tutorial purposes.
 
 ## TODO:
 
