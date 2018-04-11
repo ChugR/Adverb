@@ -2,7 +2,7 @@
 
 Wireshark is a great tool for capturing and viewing network traces. When it comes to AMQP traces, however, it's difficult to make sense of the larger picture of the protocol operation. All of the details are there but the general flow of AMQP connection and link activity has to be pieced together with a lot of clicks in Wireshark.
 
-Welcome to Adverb. Adverb is tuned to AMQP and helpfully summarizes AMQP protocol activity on an interactive web page. An Adverb web page is laid out with:
+Welcome to Adverb. Adverb is tuned to AMQP and summarizes AMQP protocol activity on an interactive web page. An Adverb web page is laid out with:
 
 * Page controls
 * Connection data display controls
