@@ -2,8 +2,8 @@
 # with Adverb to run on your localhost.
 #
 
-# Clone from the Fedora 25 image
-FROM fedora:25
+# Clone from a Fedora image
+FROM fedora:27
 
 # Chuck Rolke
 LABEL maintainer "crolke at redhatdotcom"
