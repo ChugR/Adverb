@@ -80,6 +80,9 @@ import xml.etree.ElementTree as ET
 import time
 import os
 import traceback
+from adverb_name_shortener import *
+from adverb_strings import *
+
 #import pdb
 
 def amqp_port_str():
@@ -93,89 +96,6 @@ def amqp_port_int():
     :return: integer value of AMQP default port
     '''
     return int(amqp_port_str())
-
-#
-# Various web symbols and canned strings
-#
-def nbsp():
-    '''
-    :return: HTML Non-breaking space
-    '''
-    return "&#160;"
-
-def shaded_background_begin():
-    '''
-    :return: HTML leading for shaded span
-    '''
-    return "<span style=\"background-color:#e0e0e0\">"
-
-def shaded_background_end():
-    '''
-    :return: HTML trailing for shaded span
-    '''
-    return "</span>"
-
-def l_arrow():
-    '''
-    :return: Text left arrow (HTML arrow is ugly)
-    '''
-    return "<-"
-
-def r_arrow():
-    '''
-    :return: Text right arror
-    '''
-    return "->"
-
-def l_arrow_spaced():
-    '''
-    :return: Spaced text left arrow
-    '''
-    return nbsp() + l_arrow() + nbsp()
-
-def r_arrow_spaced():
-    '''
-    :return: Spaced text right arrow
-    '''
-    return nbsp() + r_arrow() + nbsp()
-
-def l_arrow_str():
-    '''
-    :return: Spaced left arrow with a space for visual direction clue
-    '''
-    return l_arrow_spaced() + nbsp()
-
-def r_arrow_str():
-    '''
-    :return: Spaced right arrow with a space for visual direction clue
-    '''
-    return nbsp() + r_arrow_spaced()
-
-def lozenge():
-    '''
-    :return: HTML document lozenge character
-    '''
-    return "&#9674;"
-
-def double_lozenge():
-    '''
-    :return: two HTML document lozenge characters
-    '''
-    return lozenge() + lozenge()
-
-def leading(level):
-    '''
-    Calculate some leading space based on indent level.
-    There is no magic about these indents. They just have to look nice.
-    Only indent so far.
-    @type level: int
-    :param level: desired indent
-    :return: a string of Non-breaking spaces
-    '''
-    sizes = [3, 8, 13, 18, 23, 27, 31, 35, 39]
-    if level < len(sizes):
-        return nbsp() * sizes[level]
-    return nbsp() * 39
 
 #
 # font color
@@ -306,24 +226,6 @@ def colorize_dispositions_not_accepted(proto, res, global_vars, count=False):
                         global_vars.dispositions_no_delivery_state += 1
         if colorize:
             res.name = "<span style=\"background-color:gold\">" + res.name + "</span>"
-
-
-#
-# Given a hex ascii string, return printable string w/o control codes
-def dehexify_no_control_chars(valuetext):
-    '''
-    Return a printable string from a blob of hex characters.
-    Non printable ascii control chars or chars >= 127 are printed as '.'.
-    :param valuetext:
-    :return:
-    '''
-    tmp = valuetext.decode("hex")
-    res = ""
-    for ch in tmp:
-        if ord(ch) < 32 or ord(ch) >= 127:
-            ch = '.'
-        res += ch
-    return res
 
 
 #
@@ -661,52 +563,6 @@ class LinkDetail():
 
     def GetLinkEventCount(self):
         return self.credit_went_zero_events + self.credit_went_negative_events + self.message_aborted_events
-#
-#
-class ShortNames():
-    '''
-    Name shortener.
-    The short name for display is "name_" + index(longName)
-    Embellish the display name with an html popup
-    Link and endpoint names, and data are tracked separately
-    Names longer than threshold are shortened
-    Each class has a prefix used when the table is dumped as HTML
-    '''
-    def __init__(self, prefixText):
-        self.longnames = []
-        self.prefix = prefixText
-        self.threshold = 25
-
-    def translate(self, lname):
-        '''
-        Translate a long name into a short name, maybe.
-        Memorize all names, translated or not
-        :param lname: the name
-        :return: If shortened HTML string of shortened name with popup containing long name else
-        not-so-long name.
-        '''
-        idx = 0
-        try:
-            idx = self.longnames.index(lname)
-        except:
-            self.longnames.append(lname)
-            idx = self.longnames.index(lname)
-        # return as-given if short enough
-        if len(lname) < self.threshold:
-            return lname
-        return "<span title=\"" + lname + "\">" + self.prefix + "_" + str(idx) + "</span>"
-
-    def htmlDump(self):
-        '''
-        Print the name table as an unnumbered list to stdout
-        :return: null
-        '''
-        if len(self.longnames) > 0:
-            print "<h3>" + self.prefix + " Name Index</h3>"
-            print "<ul>"
-            for i in range(0, len(self.longnames)):
-                print ("<li> " + self.prefix + "_" + str(i) + " - " + self.longnames[i] + "</li>")
-            print "</ul>"
 
 short_link_names = ShortNames("link")
 short_endp_names = ShortNames("endpoint")
