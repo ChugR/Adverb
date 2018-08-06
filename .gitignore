@@ -1,0 +1,50 @@
+# General
+
+/build/
+/bld/
+*.class
+*.o
+*.d
+*.pyc
+*.pyo
+
+# Emacs, vim etc
+
+*~
+*.swp
+
+# Eclipse IDE files
+
+.project
+.classpath
+.settings
+.cproject
+eclipse-classes
+.pydevproject
+
+# IntelliJ IDE files
+
+.idea
+.idea/*
+*.iml
+*.ipr
+*.iws
+
+# MacOS files
+
+.DS_Store
+
+# Python TOX test build output
+
+/python/MANIFEST
+/python/build
+
+# Test results from the jenkins build script
+
+testresults
+
+# Visual Studio config
+
+/.vs
+/.vscode
+/CMakeSettings.json
