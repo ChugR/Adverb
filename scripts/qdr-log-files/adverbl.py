@@ -28,15 +28,18 @@
 # * There's no concept of client and server because the logs are from inside
 #   a router.
 
-import sys
-import time
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
+
 import os
+import sys
 import traceback
-from datetime import *
+import string
+
 from adverbl_log_parser import *
 from adverbl_ooo import *
-#from __future__ import print_function
-import pdb
 
 #
 #
@@ -84,6 +87,8 @@ def parse_log_file(fn, log_id, ooo_tracker):
                     pl = ParsedLogLine(log_id, lineno, line)
                     if pl is not None:
                         parsed_lines.append(pl)
+                except ValueError as ve:
+                    pass
                 except Exception as e:
                     #t, v, tb = sys.exc_info()
                     if hasattr(e, 'message'):
@@ -145,48 +150,48 @@ table, td, th {
 </head>
 <body>
 '''
-    print fixed_head
+    print(fixed_head)
 
     # file(s) included in this doc
-    print "<h3>Log files</h3>"
+    print("<h3>Log files</h3>")
     for i in range(len(log_fns)):
-        print "%s - %s - Version: %s<br>" % (chr(ord('A') + i), os.path.abspath(log_fns[i]), get_router_version(log_fns[i]))
-    print "<br> <hr>"
+        print("%s - %s - Version: %s<br>" % (chr(ord('A') + i), os.path.abspath(log_fns[i]), get_router_version(log_fns[i])))
+    print("<br> <hr>")
 
     # the proton log lines
-    print "<h3>Log data</h3>"
+    print("<h3>Log data</h3>")
     for plf in tree:
-        print plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>"
-    print "<hr>"
+        print(plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>")
+    print("<hr>")
 
     # Out-of-order histogram
-    print "<h3>Out of order stats</h3><br>"
-    print "<table>"
+    print("<h3>Out of order stats</h3><br>")
+    print("<table>")
     heads = ooo_array[0].titles()
-    print "  <tr>"
-    print "    <th>File</th>"
+    print("  <tr>")
+    print("    <th>File</th>")
     for h in heads:
-        print "<th>%s</th>" % h
-    print "<th>max</th> <th>line #</th>"
-    print "  </tr>"
+        print("<th>%s</th>" % h)
+    print("<th>max</th> <th>line #</th>")
+    print("  </tr>")
     for ooo in ooo_array:
-        print "  <tr>"
-        print "  <td>%s</td>" % ooo.prefix
+        print("  <tr>")
+        print("  <td>%s</td>" % ooo.prefix)
         for h in ooo.histogram:
-            print "  <td>%s</td>" % h
-        print "  <td>%s</td> <td>%d</td>" % (ooo.high_delta, ooo.high_lineno)
-        print "  </tr>"
-    print "</table>"
-    print "</body>"
+            print("  <td>%s</td>" % h)
+        print("  <td>%s</td> <td>%d</td>" % (ooo.high_delta, ooo.high_lineno))
+        print("  </tr>")
+    print("</table>")
+    print("</body>")
     # all done
 
 def main(argv):
     try:
         main_except(argv)
         return 0
-    except ExitStatus, e:
+    except ExitStatus as e:
         return e.status
-    except Exception, e:
+    except Exception as e:
         type, value, tb = sys.exc_info()
         traceback.print_exc()
         return 1

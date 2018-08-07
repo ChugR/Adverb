@@ -19,14 +19,12 @@
 # under the License.
 #
 
-import sys
-import time
-import os
-import traceback
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 from datetime import *
-import pdb
-#from adverb_name_shortener import *
-#from adverb_strings import *
+import string
 from adverbl_splitter import *
 from adverbl_test_data import *
 
@@ -148,7 +146,7 @@ class DescribedType():
 
     def parse(self, _dtype, _line):
         self.dtype = _dtype
-        self.line = _line
+        self.line = str(_line)
         self.dtype_name = DescribedType.dtype_name(self.dtype)
         self.dtype_number = DescribedType.dtype_number(self.dtype)
 
@@ -538,13 +536,6 @@ class ParsedLogLine(object):
         else:
             res.web_show_str = "HELP I'M A ROCK - Unknown performative: %s" % perf
 
-    def __new__(cls, *args, **kwargs):
-        (prefix, lineno, line) = args
-        if not (ParsedLogLine.server_trace_key in line or
-                (ParsedLogLine.policy_trace_key in line and "lookup_user:" in line)): # open (not begin, attach)
-            return None
-        return object.__new__(cls, *args, **kwargs)
-
     def __init__(self, _prefix, _lineno, _line):
         '''
         Process a naked qpid-dispatch log line
@@ -552,6 +543,9 @@ class ParsedLogLine(object):
         :param _lineno:
         :param _line:
         '''
+        if not (ParsedLogLine.server_trace_key in _line or
+                (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line)): # open (not begin, attach)
+            raise ValueError("Line is not a candidate for parsing")
         self.oline = _line        # original line
         self.prefix = _prefix     # router prefix
         self.lineno = _lineno     # log line number
@@ -586,7 +580,7 @@ class ParsedLogLine(object):
             self.line = self.line[sti + len(self.server_trace_key):]
         ste = self.line.find(']')
         if ste < 0:
-            print "Failed to parse line ", _lineno, " : ", _line
+            print("Failed to parse line ", _lineno, " : ", _line)
             raise ValueError("'%s' not found in line %s" % ("]", self.line))
         self.data.conn_num = self.line[:ste]
         self.line = self.line[ste + 1:]
@@ -619,11 +613,11 @@ class ParsedLogLine(object):
             self.data.web_show_str = ("<strong>%s</strong>" % self.line)
 
         # extract fields with list data
-        fields = Splitter.split(self.line)
+        fields = Splitter.split(str(self.line))
         dname = fields[0]
         if DescribedType.is_dtype_name ( dname ) :
             del fields[0]
-            self.data.described_type.parse(dname, ' '.join(fields))
+            self.data.described_type.parse(dname, str(' '.join(fields)))
             # data fron incoming line is now parsed out into facts in .data
             # Now cook the data to get useful displays
             self.extract_facts()
@@ -636,7 +630,7 @@ if __name__ == "__main__":
     try:
         for i in range(len(data)):
             temp = ParsedLogLine('A', i, data[i])
-            print temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str
+            print(temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str)
         pass
     except:
         traceback.print_exc(file=sys.stdout)

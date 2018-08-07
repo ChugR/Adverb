@@ -19,12 +19,10 @@
 # under the License.
 #
 
-import sys
-import time
-import os
-import traceback
-from datetime import *
-import pdb
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import absolute_import
+from __future__ import print_function
 import string
 from adverbl_test_data import *
 
@@ -35,13 +33,13 @@ class Splitter():
     @staticmethod
     def split(line, in_transfer=False):
         if in_transfer or "@transfer(20)" in line:
-            fields = string.split(line)
+            fields = str.split(str(line))
             nf = []
             for field in fields:
                 if field.endswith(','):
-                    nf.append(field[:-1])
+                    nf.append(str(field[:-1]))
                 elif not field == '\"':
-                    nf.append(field)
+                    nf.append(str(field))
                 else:
                     pass
             return nf
@@ -74,7 +72,7 @@ class Splitter():
             else:
                 res += c
         if not res == '':
-            result.append(res)
+            result.append(str(res))
         if indqs:
             raise ValueError("SPLIT ODD QUOTES: %s", line)
         #print ("SPLIT: line: %s" % line)
@@ -88,8 +86,8 @@ if __name__ == "__main__":
     data = data_source.data()
     try:
         for line in data:
-            print Splitter.split(line)
-            print ""
+            print (Splitter.split(line))
+            print ()
         pass
     except:
         traceback.print_exc(file=sys.stdout)
