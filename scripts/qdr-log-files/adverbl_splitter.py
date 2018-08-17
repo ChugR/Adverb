@@ -23,7 +23,7 @@ from __future__ import unicode_literals
 from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
-import string
+import re
 from adverbl_test_data import *
 
 
@@ -31,18 +31,8 @@ class Splitter():
     '''
     '''
     @staticmethod
-    def split(line, in_transfer=False):
-        if in_transfer or "@transfer(20)" in line:
-            fields = str.split(str(line))
-            nf = []
-            for field in fields:
-                if field.endswith(','):
-                    nf.append(str(field[:-1]))
-                elif not field == '\"':
-                    nf.append(str(field))
-                else:
-                    pass
-            return nf
+    def split(line):
+        #print ("Splitter.split sees: " + line[ : (len(line) if len(line) < 200 else 200)])
         result = []
         indqs = False
         pending_comma = False
@@ -86,8 +76,11 @@ if __name__ == "__main__":
     data = data_source.data()
     try:
         for line in data:
-            print (Splitter.split(line))
-            print ()
+            if not "transfer" in line:
+                print (Splitter.split(line))
+                print ()
+            else:
+                pass # splitter does not split transfers
         pass
     except:
         traceback.print_exc(file=sys.stdout)

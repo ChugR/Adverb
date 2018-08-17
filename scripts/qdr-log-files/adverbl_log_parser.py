@@ -24,7 +24,7 @@ from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
 from datetime import *
-import string
+import re
 from adverbl_splitter import *
 from adverbl_test_data import *
 
@@ -136,7 +136,6 @@ class DescribedType():
         self.dtype_name = "unparsed"
         self.dtype_number = 0
         self.extra = []
-        self.transfer_data_truncated = False
 
     def __repr__(self):
         return self._representation()
@@ -144,24 +143,77 @@ class DescribedType():
     def _representation(self):
         return "DescribedType %s( %d ) : %s" % (self.dtype_name, self.dtype_number, self.dict)
 
+    def addFieldToDict(self, fText, expected_key=None):
+        if not '=' in fText:
+            raise ValueError("Field does not contain equal sign '%s'" % self.line)
+        if not expected_key is None and not fText.startswith(expected_key):
+            raise ValueError("Transfer field %s not in order from line: %s" % (expected_key, self.line))
+        key, val = DescribedType.get_key_and_val(fText)
+        if val.endswith(','):
+            val = val[:-1]
+        self.dict[key] = val
+
+    def transfer_tail_key(self):
+        keys = ["batchable", "aborted", "resume", "state", "rcv-settle-mode", "more", "settled", "message-format"]
+        for key in keys:
+            idx = self.line.rfind(key)
+            if not idx == -1:
+                field = self.line[idx:]
+                self.addFieldToDict(field, key)
+                self.line = self.line[:idx].strip()
+                return True
+        return False
+
+    def parseTransfer(self):
+        '''
+        Figure out the described type fields for the transfer.
+        Transfers are handled specially with the ill-formatted binary delivery-tag field
+        :return:
+        '''
+        # strip leading '[' and trailing ']'
+        if not (self.line.startswith('[') and self.line.endswith(']')):
+            raise ValueError("Described type not delimited with square brackets: '%s'" % _line)
+        self.line = self.line[1:]
+        self.line = self.line[:-1]
+
+        # process fields from head
+        fHandle= self.line.split()[0]
+        self.addFieldToDict(fHandle)
+        self.line = self.line[(len(fHandle) + 1):]
+
+        fDelId = self.line.split()[0]
+        self.addFieldToDict(fDelId)
+        self.line = self.line[(len(fDelId) + 1):]
+
+        # process fields from tail
+        while len(self.line) > 0 and self.transfer_tail_key():
+            pass
+
+        # the remainder, no matter how unlikely must be the delivery-tag
+        self.addFieldToDict(self.line, "delivery-tag")
+
     def parse(self, _dtype, _line):
+        '''
+        Figure out the fields for the described type.
+        The line format is:
+
+        Transfers are handled specially with the ill-formatted binary delivery-tag field
+        Note other performatives with ill-formatted binary data might get rejected. We
+        only struggle figuring out the delivery-tag because it happens so often.
+        :param _dtype: @describedtypename(num)
+        :param _line: [key=val [, key=val]...]
+        :return:
+        '''
         self.dtype = _dtype
         self.line = str(_line)
         self.dtype_name = DescribedType.dtype_name(self.dtype)
         self.dtype_number = DescribedType.dtype_number(self.dtype)
 
-        ## stash transfer extra data keeping performative in .line
-        is_transfer = self.dtype_name == "transfer"
-        if is_transfer:
-            fields = Splitter.split(self.line, is_transfer)
-            t1 = fields.pop()
-            t2 = fields.pop()
-            if t1 == "(truncated)":
-                t3 = fields.pop()
-                self.extra.append(t3)
-            self.extra.append(t2)
-            self.extra.append(t1)
-            self.line = ' '.join(fields)
+        # Process transfers separately..
+        # Transfer perfomatives will not call parse recursively while others might
+        if self.dtype_name == "transfer":
+            self.parseTransfer()
+            return
 
         # strip leading '[' and trailing ']'
         if not ( self.line.startswith ( '[' ) and self.line.endswith ( ']' ) ) :
@@ -170,7 +222,7 @@ class DescribedType():
         self.line = self.line[:-1]
 
         # process fields
-        fields = Splitter.split(self.line, is_transfer)
+        fields = Splitter.split(self.line)
         while len ( fields ) > 0 and len ( fields [ 0 ] ) >  0:
             if not '=' in fields[0]:
                 raise ValueError("Field does not contain equal sign '%s'" % fields[0])
@@ -242,6 +294,7 @@ class ParsedLogLine(object):
     '''
     server_trace_key = "SERVER (trace) ["
     policy_trace_key = "POLICY (trace) ["
+    transfer_key = "@transfer(20)"
 
     def sender_settle_mode_of(self, value):
         if value == "0":
@@ -539,6 +592,24 @@ class ParsedLogLine(object):
     def __init__(self, _prefix, _lineno, _line):
         '''
         Process a naked qpid-dispatch log line
+        A log line looks like this:
+          2018-07-20 10:58:40.179187 -0400 SERVER (trace) [2]:0 -> @begin(17) [next-outgoing-id=0, incoming-window=2147483647, outgoing-window=2147483647] (/home/chug/git/qpid-dispatch/src/server.c:106)
+        The process is:
+         1. If the line ends with a filename:fileline then strip that away
+         2. Peel off the leading time of day and put that into data.datetime.
+            Lines with no datetime are presumed start-of-epoch.
+         3. Find (SERVER) or (POLICY). If absent then raise to reject message.
+         4. If connection number in square brackets '[2]' is missing then raise.
+         5. Extract connection number; save in data.conn_num
+         6. Create decorated data.conn_id "A-2"
+         7. Extract data.channel if present. Raise if malformed.
+         8. Create a web_show_str for lines that may not parse any further. Like policy lines.
+         9. Extract the direction arrows
+
+        The log line is now reduced to a described type:
+          @describedtypename(num) [key=val [, key=val ...]]
+            except for transfers that have the funky transfer data at end.
+
         :param _prefix: The router prefix letter A, B, C, ...
         :param _lineno:
         :param _line:
@@ -593,7 +664,7 @@ class ParsedLogLine(object):
             self.line = self.line[1:]
         sti = self.line.find(' ')
         if sti < 0:
-            raise ValueError("'%s' not found in line %s" % (" ", self.line))
+            raise ValueError("space not found after channel number at head of line %s" % (self.line))
         if sti > 0:
             self.data.channel = self.line[:sti]
         self.line = self.line[sti + 1 :]
@@ -612,12 +683,26 @@ class ParsedLogLine(object):
             self.line = self.line[3:]
             self.data.web_show_str = ("<strong>%s</strong>" % self.line)
 
-        # extract fields with list data
-        fields = Splitter.split(str(self.line))
-        dname = fields[0]
+        # The log line is now reduced to a described type:
+        #  @describedtypename(num) [key=val [, key=val ...]]
+        # extract descriptor name
+        dname = self.line.split()[0]
+        self.line = self.line [ (  len ( dname ) + 1 ) : ]
+
+        # Dispose of the transfer data
+        if dname == self.transfer_key:
+            # Look for the '] (NNN) "' that separates the described type fields
+            # from the '(size) "data"'. Stick the required '(size) data' into
+            # data.transfer_data and delete it from the line.
+            rz = re.compile(r'\] \(\d+\) \"').search(self.line)
+            if len(rz.regs) == 0:
+                raise ValueError("Transfer does not have size separator: %s" % (self.line))
+            splitSt, splitTo = rz.regs[0]
+            self.data.transfer_data = self.line [ splitSt + 2 : ]
+            self.line = self.line[ : splitSt + 1 ]
+
         if DescribedType.is_dtype_name ( dname ) :
-            del fields[0]
-            self.data.described_type.parse(dname, str(' '.join(fields)))
+            self.data.described_type.parse(dname, self.line)
             # data fron incoming line is now parsed out into facts in .data
             # Now cook the data to get useful displays
             self.extract_facts()
