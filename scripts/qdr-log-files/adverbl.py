@@ -36,17 +36,16 @@ from __future__ import print_function
 import os
 import sys
 import traceback
-import string
 
 from adverbl_log_parser import *
 from adverbl_ooo import *
+from adverbl_name_shortener import *
 
 #
 #
 class ExitStatus(Exception):
     """Raised if a command wants a non-0 exit status from the script"""
     def __init__(self, status): self.status = status
-
 
 def log_line_sort_key(lfl):
     return lfl.datetime
@@ -69,7 +68,7 @@ def get_router_version(fn):
     return "unknown"
 
 
-def parse_log_file(fn, log_id, ooo_tracker):
+def parse_log_file(fn, log_id, ooo_tracker, shorteners):
     '''
     Given a file name, return the parsed lines for display
     :param fn: file name
@@ -84,7 +83,7 @@ def parse_log_file(fn, log_id, ooo_tracker):
             ooo_tracker.process_line(lineno, line)
             if "[" in line and "]" in line:
                 try:
-                    pl = ParsedLogLine(log_id, lineno, line)
+                    pl = ParsedLogLine(log_id, lineno, line, shorteners)
                     if pl is not None:
                         parsed_lines.append(pl)
                 except ValueError as ve:
@@ -102,7 +101,9 @@ def parse_log_file(fn, log_id, ooo_tracker):
 #
 def main_except(argv):
     #pdb.set_trace()
-    """Given a pdml file name, send the javascript web page to stdout"""
+    """
+    Given a list of log file names, send the javascript web page to stdout
+    """
     if len(sys.argv) < 2:
         sys.exit('Usage: %s log-file-name' % sys.argv[0])
 
@@ -110,6 +111,8 @@ def main_except(argv):
     log_array = []
     log_fns = []
     ooo_array = []
+
+    shorteners = Shorteners()
 
     for log_i in range(1, len(sys.argv)):
 
@@ -122,7 +125,7 @@ def main_except(argv):
         # parse the log file
         ooo = LogLinesOoo(log_char)
         ooo_array.append(ooo)
-        tree = parse_log_file(arg_log_file, log_char, ooo)
+        tree = parse_log_file(arg_log_file, log_char, ooo, shorteners)
         if len(tree) == 0:
             sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
 
@@ -163,6 +166,9 @@ table, td, th {
     for plf in tree:
         print(plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>")
     print("<hr>")
+
+    # short data index
+    shorteners.short_data_names.htmlDump()
 
     # Out-of-order histogram
     print("<h3>Out of order stats</h3><br>")

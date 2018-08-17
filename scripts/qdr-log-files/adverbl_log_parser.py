@@ -27,6 +27,7 @@ from datetime import *
 import re
 from adverbl_splitter import *
 from adverbl_test_data import *
+from adverbl_name_shortener import *
 
 
 def colorize_bg(what):
@@ -350,11 +351,11 @@ class ParsedLogLine(object):
             res.snd_settle_mode = self.sender_settle_mode_of(resdict["snd-settle-mode"]) if "snd-settle-mode" in resdict else "mixed"
             res.rcv_settle_mode = self.receiver_settle_mode_of(resdict["rcv-settle-mode"]) if "rcv-settle-mode" in resdict else "first"
             if tmpsrc is not None:
-                res.source = self.resdict_value(resdict, "address", "none")
+                res.source = self.resdict_value(tmpsrc.dict, "address", "none")
             else:
                 res.source = "none"
             if tmptgt is not None:
-                res.target = self.resdict_value(resdict, "address", "none")
+                res.target = self.resdict_value(tmptgt.dict, "address", "none")
             else:
                 res.target = "none"
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
@@ -392,8 +393,10 @@ class ParsedLogLine(object):
             aborted = ""
             if not v_aborted is None:
                 aborted = " <span style=\"background-color:yellow\">aborted</span>" if v_aborted == '1' else ""
-            res.web_show_str = "<strong>%s</strong>  %s (%s) %s" % (
-                res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted)
+            dat = self.shorteners.short_data_names.translate(res.transfer_data)
+            showdat = " <span style=\"background-color:white\">" + dat + "</span>"
+            res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s" % (
+                res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted, showdat)
 
         elif perf == 0x15:
             # Performative: disposition [channel] (role first-last)
@@ -589,7 +592,7 @@ class ParsedLogLine(object):
         else:
             res.web_show_str = "HELP I'M A ROCK - Unknown performative: %s" % perf
 
-    def __init__(self, _prefix, _lineno, _line):
+    def __init__(self, _prefix, _lineno, _line, _shorteners):
         '''
         Process a naked qpid-dispatch log line
         A log line looks like this:
@@ -620,6 +623,7 @@ class ParsedLogLine(object):
         self.oline = _line        # original line
         self.prefix = _prefix     # router prefix
         self.lineno = _lineno     # log line number
+        self.shorteners = _shorteners # name shorteners
 
         self.line = _line         # working line chopped, trimmed
 
@@ -698,7 +702,7 @@ class ParsedLogLine(object):
             if len(rz.regs) == 0:
                 raise ValueError("Transfer does not have size separator: %s" % (self.line))
             splitSt, splitTo = rz.regs[0]
-            self.data.transfer_data = self.line [ splitSt + 2 : ]
+            self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
             self.line = self.line[ : splitSt + 1 ]
 
         if DescribedType.is_dtype_name ( dname ) :
@@ -712,9 +716,10 @@ if __name__ == "__main__":
 
     data_source = TestData()
     data = data_source.data()
+    shorteners = Shorteners()
     try:
         for i in range(len(data)):
-            temp = ParsedLogLine('A', i, data[i])
+            temp = ParsedLogLine('A', i, data[i], shorteners)
             print(temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str)
         pass
     except:
