@@ -121,10 +121,26 @@ def main_except(argv):
     log_fns = []
     ooo_array = []
 
+    # the discovered container names for each router
+    router_ids = []
+
+    # list of list of connections as discovered in files
+    # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]
+    conn_lists = []
+
+    # connection direction. Who oritinated the connection?
+
+    # connection peers
+    # key=decorated name 'A-3'
+    conn_peers = {}         # val = peer container-id
+    conn_dirs = {}          # val = direction arrow
+    conn_log_lines = {}     # val = count of log lines
+    conn_xfer_bytes = {}    # val = transfer byte count
+
     shorteners = Shorteners()
 
     for log_i in range(1, len(sys.argv)):
-
+        log_letter = chr(ord(log_char_base) + log_i - 1) # A, B, C, ...
         arg_log_file = sys.argv[log_i]
         log_fns.append(arg_log_file)
 
@@ -132,11 +148,41 @@ def main_except(argv):
             sys.exit('ERROR: log file %s was not found!' % arg_log_file)
 
         # parse the log file
-        ooo = LogLinesOoo(chr(ord(log_char_base) + log_i - 1))
+        ooo = LogLinesOoo(log_letter)
         ooo_array.append(ooo)
-        tree = parse_log_file(arg_log_file, chr(ord(log_char_base) + log_i - 1), ooo, shorteners)
+        tree = parse_log_file(arg_log_file, log_letter, ooo, shorteners)
         if len(tree) == 0:
             sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
+
+        # marshall facts about the run
+        router_ids.append(get_router_id(arg_log_file))
+        conns = []
+        for item in tree:
+            # first-instance handling
+            if not int(item.data.conn_num) in conns:
+                conns.append(int(item.data.conn_num))
+                cdir = ""
+                if not item.data.direction == "":
+                    cdir = item.data.direction
+                else:
+                    if "Connecting" in item.data.web_show_str:
+                        cdir = item.data.direction_out()
+                    elif "Accepting" in item.data.web_show_str:
+                        cdir = item.data.direction_in()
+                conn_dirs[item.data.conn_id] = cdir
+                conn_log_lines[item.data.conn_id] = 0
+                conn_xfer_bytes[item.data.conn_id] = 0
+            # inbound open handling
+            if item.data.name == "open" and item.data.direction == item.data.direction_in():
+                if item.data.conn_id in conn_peers:
+                    sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (arg_log_file, item.data.conn_id))
+                conn_peers[item.data.conn_id] = item.data.conn_peer
+            # per-log-line count
+            conn_log_lines[item.data.conn_id] += 1
+            # transfer byte count
+            if item.data.name == "transfer":
+                conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
+        conn_lists.append(sorted(conns))
 
         log_array += tree
 
@@ -165,11 +211,25 @@ table, td, th {
 
     # file(s) included in this doc
     print("<h3>Log files</h3>")
-    print("<table><tr><th>Log</th> <th>Container Name</th> <th>Version</th> <th>Log file path</th></tr>")
+    print("<table><tr><th>Log</th> <th>Container Name</th> <th>Version</th> <th>Log File Path</th></tr>")
     for i in range(len(log_fns)):
         log_letter = chr(ord('A') + i)
         print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-              (log_letter, get_router_id(log_fns[i]), get_router_version(log_fns[i]), os.path.abspath(log_fns[i])))
+              (log_letter, router_ids[i], get_router_version(log_fns[i]), os.path.abspath(log_fns[i])))
+    print("</table>")
+    print("<hr>")
+
+    # print the connection peer table
+    print("<h3>Connection peers</h3>")
+    print("<table><tr><th>Connection Id</th> <th>Dir</th> <th>Inbound Open Peer</th> <th>Log Lines</th> <th>Transfer Bytes</th> </tr>")
+    for i in range(len(log_fns)):
+        log_letter = chr(ord('A') + i)
+        conn_list = conn_lists[i]
+        for conn in conn_list:
+            id = log_letter + "-" + str(conn)
+            peer = conn_peers[id] if id in conn_peers else ""
+            print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+                  (id, conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
     print("</table>")
     print("<hr>")
 

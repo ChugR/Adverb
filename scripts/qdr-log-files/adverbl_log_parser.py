@@ -48,6 +48,7 @@ class LogLineData():
         self.name = ""
         self.conn_num = "" # source router's undecorated conn num
         self.conn_id = "" # decorated routerPrefix-conn_num
+        self.conn_peer = "" # display name of peer in seen in Open 'A - routerId.Test'
         self.channel = ""  # undecorated number - '0'
         self.direction = "" # '<-' IN, or '->' OUT
         self.described_type = DescribedType() # DescribedType object
@@ -69,8 +70,10 @@ class LogLineData():
         self.settled = ""  # Disposition or Transfer settled field
         self.snd_settle_mode = ""  # Attach
         self.rcv_settle_mode = ""  # Attach
-        self.transfer_data = ""  # dehexified transfer data value
-        self.is_policy_info = False
+        self.transfer_data = ""  # protonized transfer data value
+        self.transfer_size = ""  # size declared by number in parenthesis
+        self.is_policy_trace = False # line is POLICY (trace)
+        self.is_server_info = False # line is SERVER (info)
 
     def __repr__(self):
         return self._representation()
@@ -301,6 +304,7 @@ class ParsedLogLine(object):
    **
     '''
     server_trace_key = "SERVER (trace) ["
+    server_info_key  = "SERVER (info) ["
     policy_trace_key = "POLICY (trace) ["
     transfer_key = "@transfer(20)"
 
@@ -339,7 +343,8 @@ class ParsedLogLine(object):
             res.channel = "0"
             res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
             if res.direction == res.direction_in():
-                res.web_show_str += (" (from %s)" % self.resdict_value(resdict, "container-id", "unknown"))
+                res.conn_peer = self.resdict_value(resdict, "container-id", "unknown")
+                res.web_show_str += (" (peer: %s)" % res.conn_peer)
 
         elif perf == 0x11:
             # Performative: begin [channel,remoteChannel]
@@ -404,8 +409,8 @@ class ParsedLogLine(object):
                 aborted = " <span style=\"background-color:yellow\">aborted</span>" if v_aborted == '1' else ""
             dat = self.shorteners.short_data_names.translate(res.transfer_data)
             showdat = " <span style=\"background-color:white\">" + dat + "</span>"
-            res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s" % (
-                res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted, showdat)
+            res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s - %s bytes" % (
+                res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted, showdat, res.transfer_size)
 
         elif perf == 0x15:
             # Performative: disposition [channel] (role first-last)
@@ -627,7 +632,8 @@ class ParsedLogLine(object):
         :param _line:
         '''
         if not (ParsedLogLine.server_trace_key in _line or
-                (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line)): # open (not begin, attach)
+                (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line) or # open (not begin, attach)
+                ParsedLogLine.server_info_key in _line):
             raise ValueError("Line is not a candidate for parsing")
         self.oline = _line        # original line
         self.prefix = _prefix     # router prefix
@@ -668,10 +674,15 @@ class ParsedLogLine(object):
         if sti < 0:
             sti = self.line.find(self.policy_trace_key)
             if sti < 0:
-                raise ValueError("'%s' not found in line %s" % (self.server_trace_key, self.line))
+                sti = self.line.find(self.server_info_key)
+                if sti < 0:
+                    raise ValueError("Log keyword/level not found in line %s" % (self.line))
+                else:
+                    self.line = self.line[sti + len(self.server_info_key):]
+                    self.data.is_server_info = True
             else:
                 self.line = self.line[sti + len(self.policy_trace_key):]
-                self.data.is_policy_info = True
+                self.data.is_policy_trace = True
         else:
             self.line = self.line[sti + len(self.server_trace_key):]
         ste = self.line.find(']')
@@ -699,7 +710,7 @@ class ParsedLogLine(object):
         self.data.web_show_str = ("<strong>%s</strong>" % self.line)
 
         # policy lines have no direction and described type fields
-        if self.data.is_policy_info:
+        if self.data.is_policy_trace or self.data.is_server_info:
             return
 
         # direction
@@ -723,6 +734,7 @@ class ParsedLogLine(object):
             if len(rz.regs) == 0:
                 raise ValueError("Transfer does not have size separator of form '(NNN)': %s" % (self.line))
             splitSt, splitTo = rz.regs[0]
+            self.data.transfer_size = self.line[ splitSt + 3 : splitTo - 3 ]
             self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
             self.line = self.line[ : splitSt + 1 ]
 
