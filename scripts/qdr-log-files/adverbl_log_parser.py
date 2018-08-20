@@ -34,7 +34,14 @@ def colorize_bg(what):
     # TODO: use the real colorize_bg
     return what
 
+
 class LogLineData():
+
+    def direction_in(self):
+        return "<-"
+
+    def direction_out(self):
+        return "->"
 
     def __init__(self):
         self.web_show_str = ""
@@ -190,7 +197,7 @@ class DescribedType():
         while len(self.line) > 0 and self.transfer_tail_key():
             pass
 
-        # the remainder, no matter how unlikely must be the delivery-tag
+        # the remainder, no matter how unlikely, must be the delivery-tag
         self.addFieldToDict(self.line, "delivery-tag")
 
     def parse(self, _dtype, _line):
@@ -331,6 +338,8 @@ class ParsedLogLine(object):
             res.name = "open"
             res.channel = "0"
             res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
+            if res.direction == res.direction_in():
+                res.web_show_str += (" (from %s)" % self.resdict_value(resdict, "container-id", "unknown"))
 
         elif perf == 0x11:
             # Performative: begin [channel,remoteChannel]
@@ -631,7 +640,19 @@ class ParsedLogLine(object):
 
         # strip optional trailing file:line field
         self.line = self.line.rstrip()
+        hasFileLine = False
         if self.line.endswith(')'):
+            idxOP = self.line.rfind('(')
+            idxColon = self.line.rfind(':')
+            if not idxOP == -1 and not idxColon == -1:
+                if idxColon > idxOP:
+                    lNumStr = self.line[(idxColon + 1) : (-1)]
+                    try:
+                        lnum = int(lNumStr)
+                        hasFileLine = True
+                    except:
+                        pass
+        if hasFileLine:
             self.line = self.line[:self.line.rfind('(')].rstrip()
 
         # Handle optional timestamp
@@ -700,7 +721,7 @@ class ParsedLogLine(object):
             # data.transfer_data and delete it from the line.
             rz = re.compile(r'\] \(\d+\) \"').search(self.line)
             if len(rz.regs) == 0:
-                raise ValueError("Transfer does not have size separator: %s" % (self.line))
+                raise ValueError("Transfer does not have size separator of form '(NNN)': %s" % (self.line))
             splitSt, splitTo = rz.regs[0]
             self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
             self.line = self.line[ : splitSt + 1 ]

@@ -51,21 +51,28 @@ def log_line_sort_key(lfl):
     return lfl.datetime
 
 
-def get_router_version(fn):
+def get_some_field(fn, fld_prefix):
     '''
-    Extract router version string from a log file
+    Extract some string from a log file
     :param fn: the path to the log file
-    :return: version string or 'unknown'
+    :param fnd_prefix: text before the intended field
+    :return: field text or 'unknown'
     '''
     with open(fn, 'r') as infile:
         for line in infile:
-            if "ROUTER (info) Version:" in line:
-                flds = line.split()
-                ver = flds[-1]
-                if ver.startswith('('):
-                    ver = flds[-2]
-                return ver
+            st = line.find(fld_prefix)
+            if st > 0:
+                res = line[(st + len(fld_prefix)):].strip().split()[0]
+                return res
     return "unknown"
+
+
+def get_router_version(fn):
+    return get_some_field(fn, "ROUTER (info) Version:")
+
+
+def get_router_id(fn):
+    return get_some_field(fn, "SERVER (info) Container Name:")
 
 
 def parse_log_file(fn, log_id, ooo_tracker, shorteners):
@@ -80,6 +87,8 @@ def parse_log_file(fn, log_id, ooo_tracker, shorteners):
     with open(fn, 'r') as infile:
         for line in infile:
             lineno += 1
+            if lineno == 162:
+                pass # break
             ooo_tracker.process_line(lineno, line)
             if "[" in line and "]" in line:
                 try:
@@ -107,7 +116,7 @@ def main_except(argv):
     if len(sys.argv) < 2:
         sys.exit('Usage: %s log-file-name' % sys.argv[0])
 
-    log_char = 'A'
+    log_char_base = 'A'
     log_array = []
     log_fns = []
     ooo_array = []
@@ -123,14 +132,13 @@ def main_except(argv):
             sys.exit('ERROR: log file %s was not found!' % arg_log_file)
 
         # parse the log file
-        ooo = LogLinesOoo(log_char)
+        ooo = LogLinesOoo(chr(ord(log_char_base) + log_i - 1))
         ooo_array.append(ooo)
-        tree = parse_log_file(arg_log_file, log_char, ooo, shorteners)
+        tree = parse_log_file(arg_log_file, chr(ord(log_char_base) + log_i - 1), ooo, shorteners)
         if len(tree) == 0:
             sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
 
         log_array += tree
-        log_char = chr(ord(log_char) + 1)
 
     tree = sorted(log_array, key=lambda lfl: lfl.datetime)
 
@@ -157,10 +165,13 @@ table, td, th {
 
     # file(s) included in this doc
     print("<h3>Log files</h3>")
+    print("<table><tr><th>Log</th> <th>Container Name</th> <th>Version</th> <th>Log file path</th></tr>")
     for i in range(len(log_fns)):
         log_letter = chr(ord('A') + i)
-        print("%s - %s - Version: %s<br>" % (log_letter, os.path.abspath(log_fns[i]), get_router_version(log_fns[i])))
-    print("<br> <hr>")
+        print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+              (log_letter, get_router_id(log_fns[i]), get_router_version(log_fns[i]), os.path.abspath(log_fns[i])))
+    print("</table>")
+    print("<hr>")
 
     # the proton log lines
     print("<h3>Log data</h3>")
@@ -172,23 +183,31 @@ table, td, th {
     shorteners.short_data_names.htmlDump()
 
     # Out-of-order histogram
-    print("<h3>Out of order stats</h3><br>")
-    print("<table>")
-    heads = ooo_array[0].titles()
-    print("  <tr>")
-    print("    <th>File</th>")
-    for h in heads:
-        print("<th>%s</th>" % h)
-    print("<th>max</th> <th>line #</th>")
-    print("  </tr>")
+    # Don't print if all zeros
+    printooo = False
     for ooo in ooo_array:
-        print("  <tr>")
-        print("  <td>%s</td>" % ooo.prefix)
         for h in ooo.histogram:
-            print("  <td>%s</td>" % h)
-        print("  <td>%s</td> <td>%d</td>" % (ooo.high_delta, ooo.high_lineno))
+            if not str(h) == '0':
+                printooo = True
+    if printooo:
+        print("<h3>Out of order stats</h3><br>")
+        print("<table>")
+        heads = ooo_array[0].titles()
+        print("  <tr>")
+        print("    <th>File</th>")
+        for h in heads:
+            print("<th>%s</th>" % h)
+        print("<th>max</th> <th>line #</th>")
         print("  </tr>")
-    print("</table>")
+        for ooo in ooo_array:
+            print("  <tr>")
+            print("  <td>%s</td>" % ooo.prefix)
+            for h in ooo.histogram:
+                print("  <td>%s</td>" % h)
+            print("  <td>%s</td> <td>%d</td>" % (ooo.high_delta, ooo.high_lineno))
+            print("  </tr>")
+        print("</table>")
+
     print("</body>")
     # all done
 
