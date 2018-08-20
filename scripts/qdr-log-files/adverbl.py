@@ -158,7 +158,8 @@ table, td, th {
     # file(s) included in this doc
     print("<h3>Log files</h3>")
     for i in range(len(log_fns)):
-        print("%s - %s - Version: %s<br>" % (chr(ord('A') + i), os.path.abspath(log_fns[i]), get_router_version(log_fns[i])))
+        log_letter = chr(ord('A') + i)
+        print("%s - %s - Version: %s<br>" % (log_letter, os.path.abspath(log_fns[i]), get_router_version(log_fns[i])))
     print("<br> <hr>")
 
     # the proton log lines
