@@ -417,7 +417,7 @@ class ParsedLogLine(object):
             if not v_aborted is None:
                 aborted = " <span style=\"background-color:yellow\">aborted</span>" if v_aborted == '1' else ""
             self.transfer_short_name = self.shorteners.short_data_names.translate(res.transfer_data)
-            showdat = " <span style=\"background-color:white\">" + self.transfer_short_name + "</span>"
+            showdat = "<a href=\"#%s\">%s</a>" % (self.transfer_short_name, self.transfer_short_name)
             res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s - %s bytes" % (
                 res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted, showdat, res.transfer_size)
 

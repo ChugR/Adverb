@@ -36,6 +36,7 @@ from __future__ import print_function
 import os
 import sys
 import traceback
+import cgi
 
 from adverbl_log_parser import *
 from adverbl_ooo import *
@@ -46,6 +47,14 @@ from adverbl_name_shortener import *
 class ExitStatus(Exception):
     """Raised if a command wants a non-0 exit status from the script"""
     def __init__(self, status): self.status = status
+
+
+def lozenge():
+    '''
+    :return: HTML document lozenge character
+    '''
+    return "&#9674;"
+
 
 def log_line_sort_key(lfl):
     return lfl.datetime
@@ -326,7 +335,17 @@ function go_back()
     print(end_head_start_body)
     #
 
+    # Table of contents
+    print("<h3>Contents</h3>")
+    print("<ul>")
+    print("<li><a href=\"#c_logfiles\">Log files</a></li>")
+    print("<li><a href=\"#c_connections\">Connections</a></li>")
+    print("<li><a href=\"#c_logdata\">Log data</a></li>")
+    print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
+    print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
+    print("</ul>")
     # file(s) included in this doc
+    print("<a name=\"c_logfiles\"></a>")
     print("<h3>Log files</h3>")
     print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Log file path</th></tr>")
     for i in range(len(log_fns)):
@@ -337,18 +356,24 @@ function go_back()
     print("<hr>")
 
     # print the connection peer table
+    print("<a name=\"c_connections\"></a>")
     print("<h3>Connections</h3>")
 
+    print("<p>")
     print("<button onclick=\"javascript:select_all()\">Select All</button>")
     print("<button onclick=\"javascript:deselect_all()\">Deselect All</button>")
     print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
-    print("<br>")
+    print("</p>")
 
     print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> <th>Transfer bytes</th> </tr>")
+    tConn = 0
+    tLines = 0
+    tBytes = 0
     for i in range(len(log_fns)):
         log_letter = chr(ord('A') + i)
         conn_list = conn_lists[i]
         for conn in conn_list:
+            tConn += 1
             id = conn_id_of(log_letter, conn)
             peer = conn_peers[id] if id in conn_peers else ""
             print("<tr>")
@@ -357,24 +382,42 @@ function go_back()
 
             print("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
                   (id, conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
+            tLines += conn_log_lines[id]
+            tBytes += conn_xfer_bytes[id]
+    print("<td>Sum</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
+          (tConn, tLines, tBytes))
+
     print("</table>")
     print("<hr>")
 
     # the proton log lines
+    print("<a name=\"c_logdata\"></a>")
     print("<h3>Log data</h3>")
     for plf in tree:
         print("<div width=\"100%%\" style=\"display:block  margin-bottom: 2px\" id=\"%s\">" % plf.fid)
+        print("<a name=\"%s\"></a>" % plf.fid)
         print(plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>")
         print("</div>")
     print("<hr>")
 
     # data traversing network
+    print("<a name=\"c_messageprogress\"></a>")
     print("<h3>Message progress</h3>")
     for i in range(0, shorteners.short_data_names.len()):
         sname = shorteners.short_data_names.shortname(i)
-        print("<h4>%s</h4>" % sname)
+        size = 0
+        for plf in tree:
+            if plf.data.name == "transfer" and plf.transfer_short_name == sname:
+                size = plf.data.transfer_size
+                break
+        print("<a name=\"%s\"></a> <h4>%s (%s)" % (sname, sname, size))
+        print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, lozenge()))
+        print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" % ("data_" + sname))
+        print(" ",  shorteners.short_data_names.longname(i, True))
+        print("</div> </span>")
+        print("</h4>")
         print("<table>")
-        print("<tr><th>Time</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> <th>T delta</th> <th>T elapsed</th></tr>")
+        print("<tr><th>Link</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> <th>T delta</th> <th>T elapsed</th></tr>")
         t0 = None
         tlast = None
         for plf in tree:
@@ -389,15 +432,17 @@ function go_back()
                     epsed = time_offset(plf.datetime, t0)
                     tlast = plf.datetime
                 peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
-                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td></tr>" %
-                      (plf.datetime, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
+                link = "<a href=\"#%s\">src</a>" % plf.fid
+                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td></tr>" %
+                      (link, plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
         print("</table>")
 
     print("<hr>")
 
 
     # short data index
-    shorteners.short_data_names.htmlDump()
+    print("<a name=\"c_msgdump\"></a>")
+    shorteners.short_data_names.htmlDump(True)
 
     # Out-of-order histogram
     # Don't print if all zeros

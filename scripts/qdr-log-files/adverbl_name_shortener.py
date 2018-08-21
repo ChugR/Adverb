@@ -68,19 +68,30 @@ class ShortNames():
             return name
         return self.prefix + "_" + str(idx)
 
-    def longname(self, idx):
-        return self.longname[idx]
+    def longname(self, idx, cgi_escape=False):
+        '''
+        Get the cgi.excape'd long name
+        :param idx:
+        :param cgi_escape: true if caller wants the string for html display
+        :return:
+        '''
+        return cgi.escape(self.longnames[idx]) if cgi_escape else self.longnames[idx]
 
-    def htmlDump(self):
+    def htmlDump(self, with_link=False):
         '''
         Print the name table as an unnumbered list to stdout
+        long names are cgi.escape'd
+        :param with_link: true if link name link name is hyperlinked targeting itself
         :return: null
         '''
         if len(self.longnames) > 0:
             print "<h3>" + self.prefix + " Name Index</h3>"
             print "<ul>"
             for i in range(0, len(self.longnames)):
-                print ("<li> " + self.prefix + "_" + str(i) + " - " + self.longnames[i] + "</li>")
+                name = self.prefix + "_" + str(i)
+                if with_link:
+                    name = "<a href=\"#%s\">%s</a>" % (name, name)
+                print ("<li> " + name + " - " + cgi.escape(self.longnames[i]) + "</li>")
             print "</ul>"
 
 
