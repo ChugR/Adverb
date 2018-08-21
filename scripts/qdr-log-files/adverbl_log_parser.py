@@ -271,6 +271,7 @@ class DescribedType():
                 # handle some embedded map: properties={:product=\"qpid-dispatch-router\", :version=\"1.3.0-SNAPSHOT\"}
                 # pull subtype's data out of fields. The fields list belongs to parent.
                 submap = {}
+                fields.insert(0, val)
                 skey, sval = DescribedType.get_key_and_val( fields[0][1:] )
                 submap[skey] = sval
                 del fields[0]
