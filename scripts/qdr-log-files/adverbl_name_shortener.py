@@ -56,6 +56,21 @@ class ShortNames():
         # return "<span title=\"" + cgi.escape(lname) + "\">" + self.prefix + "_" + str(idx) + "</span>"
         return self.prefix + "_" + str(idx)
 
+    def len(self):
+        return len(self.longnames)
+
+    def prefix(self):
+        return self.prefix
+
+    def shortname(self, idx):
+        name = self.longnames[idx]
+        if len(name) < self.threshold:
+            return name
+        return self.prefix + "_" + str(idx)
+
+    def longname(self, idx):
+        return self.longname[idx]
+
     def htmlDump(self):
         '''
         Print the name table as an unnumbered list to stdout

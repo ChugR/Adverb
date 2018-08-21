@@ -67,6 +67,12 @@ def get_some_field(fn, fld_prefix):
     return "unknown"
 
 
+def time_offset(ttest, t0):
+    delta = ttest - t0
+    t = float(delta.seconds) + float(delta.microseconds) / 1000000.0
+    return "%0.06f" % t
+
+
 def get_router_version(fn):
     return get_some_field(fn, "ROUTER (info) Version:")
 
@@ -211,7 +217,7 @@ table, td, th {
 
     # file(s) included in this doc
     print("<h3>Log files</h3>")
-    print("<table><tr><th>Log</th> <th>Container Name</th> <th>Version</th> <th>Log File Path</th></tr>")
+    print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Log file path</th></tr>")
     for i in range(len(log_fns)):
         log_letter = chr(ord('A') + i)
         print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
@@ -221,7 +227,7 @@ table, td, th {
 
     # print the connection peer table
     print("<h3>Connection peers</h3>")
-    print("<table><tr><th>Connection Id</th> <th>Dir</th> <th>Inbound Open Peer</th> <th>Log Lines</th> <th>Transfer Bytes</th> </tr>")
+    print("<table><tr><th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> <th>Transfer bytes</th> </tr>")
     for i in range(len(log_fns)):
         log_letter = chr(ord('A') + i)
         conn_list = conn_lists[i]
@@ -238,6 +244,34 @@ table, td, th {
     for plf in tree:
         print(plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>")
     print("<hr>")
+
+    # data traversing network
+    print("<h3>Message progress</h3>")
+    for i in range(0, shorteners.short_data_names.len()):
+        sname = shorteners.short_data_names.shortname(i)
+        print("<h4>%s</h4>" % sname)
+        print("<table>")
+        print("<tr><th>Time</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> <th>T delta</th> <th>T elapsed</th></tr>")
+        t0 = None
+        tlast = None
+        for plf in tree:
+            if plf.data.name == "transfer" and plf.transfer_short_name == sname:
+                if t0 is None:
+                    t0 = plf.datetime
+                    tlast = plf.datetime
+                    delta = "0.000000"
+                    epsed = "0.000000"
+                else:
+                    delta = time_offset(plf.datetime, tlast)
+                    epsed = time_offset(plf.datetime, t0)
+                    tlast = plf.datetime
+                peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
+                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td></tr>" %
+                      (plf.datetime, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
+        print("</table>")
+
+    print("<hr>")
+
 
     # short data index
     shorteners.short_data_names.htmlDump()

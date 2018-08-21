@@ -72,6 +72,7 @@ class LogLineData():
         self.rcv_settle_mode = ""  # Attach
         self.transfer_data = ""  # protonized transfer data value
         self.transfer_size = ""  # size declared by number in parenthesis
+        self.transfer_short_name = ""
         self.is_policy_trace = False # line is POLICY (trace)
         self.is_server_info = False # line is SERVER (info)
 
@@ -407,8 +408,8 @@ class ParsedLogLine(object):
             aborted = ""
             if not v_aborted is None:
                 aborted = " <span style=\"background-color:yellow\">aborted</span>" if v_aborted == '1' else ""
-            dat = self.shorteners.short_data_names.translate(res.transfer_data)
-            showdat = " <span style=\"background-color:white\">" + dat + "</span>"
+            self.transfer_short_name = self.shorteners.short_data_names.translate(res.transfer_data)
+            showdat = " <span style=\"background-color:white\">" + self.transfer_short_name + "</span>"
             res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s - %s bytes" % (
                 res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted, showdat, res.transfer_size)
 
