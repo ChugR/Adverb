@@ -81,6 +81,10 @@ def get_router_id(fn):
     return get_some_field(fn, "SERVER (info) Container Name:")
 
 
+def conn_id_of(log_letter, conn_num):
+    return log_letter + "_" + str(conn_num)
+
+
 def parse_log_file(fn, log_id, ooo_tracker, shorteners):
     '''
     Given a file name, return the parsed lines for display
@@ -137,7 +141,7 @@ def main_except(argv):
     # connection direction. Who oritinated the connection?
 
     # connection peers
-    # key=decorated name 'A-3'
+    # key=decorated name 'A_3'
     conn_peers = {}         # val = peer container-id
     conn_dirs = {}          # val = direction arrow
     conn_log_lines = {}     # val = count of log lines
@@ -194,12 +198,23 @@ def main_except(argv):
 
     tree = sorted(log_array, key=lambda lfl: lfl.datetime)
 
+    # create a map of (connection, [list of associated frames])
+    conn_to_frame_map = {}
+    for i in range(len(log_fns)):
+        log_letter = chr(ord('A') + i)
+        conn_list = conn_lists[i]
+        for conn in conn_list:
+            id = conn_id_of(log_letter, conn)
+            conn_to_frame_map[id] = []
+    for plf in tree:
+        conn_to_frame_map[plf.data.conn_id].append(plf)
+
     # html head, start body
     fixed_head = '''
 <!DOCTYPE html>
 <html>
 <head>
-<title>Adverb Analysis - qpid-dispatch router logs</title>
+<title>Adverbl Analysis - qpid-dispatch router logs</title>
 
 <style>
 table {
@@ -210,10 +225,106 @@ table, td, th {
     padding: 3px;
 }
 </style>
+
+<script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script>
+<!-- <script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script> -->
+<script type="text/javascript">
+function node_is_visible(node)
+{
+  if(dojo.isString(node))
+    node = dojo.byId(node);
+  if(!node) 
+    return false;
+  return node.style.display == "block";
+}
+function set_node(node, str)
+{
+  if(dojo.isString(node))
+    node = dojo.byId(node);
+  if(!node) return;
+  node.style.display = str;
+}
+function toggle_node(node)
+{
+  if(dojo.isString(node))
+    node = dojo.byId(node);
+  if(!node) return;
+  set_node(node, (node_is_visible(node)) ? 'none' : 'block');
+}
+function hide_node(node)
+{
+  set_node(node, 'none');
+}
+function show_node(node)
+{
+  set_node(node, 'block');
+}
+
+function go_back()
+{
+  window.history.back();
+}
+'''
+    end_head_start_body = '''
 </head>
 <body>
 '''
-    print(fixed_head)
+    print (fixed_head)
+
+    # output the frame show/hide functions into the header
+    for conn_id, plfs in conn_to_frame_map.iteritems():
+        print("function show_%s() {" % conn_id)
+        for plf in plfs:
+            print("  javascript:show_node(\'%s\');" % plf.fid)
+        print("}")
+        print("function hide_%s() {" % conn_id)
+        for plf in plfs:
+            print("  javascript:hide_node(\'%s\');" % plf.fid)
+        print("}")
+        # manipulate checkboxes
+        print("function show_if_cb_sel_%s() {" % conn_id)
+        print("  if (document.getElementById(\"cb_sel_%s\").checked) {" % conn_id)
+        print("    javascript:show_%s();" % conn_id)
+        print("  } else {")
+        print("    javascript:hide_%s();" % conn_id)
+        print("  }")
+        print("}")
+        print("function select_cb_sel_%s() {" % conn_id)
+        print("  document.getElementById(\"cb_sel_%s\").checked = true;" % conn_id)
+        print("  javascript:show_%s();" % conn_id)
+        print("}")
+        print("function deselect_cb_sel_%s() {" % conn_id)
+        print("  document.getElementById(\"cb_sel_%s\").checked = false;" % conn_id)
+        print("  javascript:hide_%s();" % conn_id)
+        print("}")
+        print("function toggle_cb_sel_%s() {" % conn_id)
+        print("  if (document.getElementById(\"cb_sel_%s\").checked) {" % conn_id)
+        print("    document.getElementById(\"cb_sel_%s\").checked = false;" % conn_id)
+        print("  } else {")
+        print("    document.getElementById(\"cb_sel_%s\").checked = true;" % conn_id)
+        print("  }")
+        print("  javascript:show_if_cb_sel_%s();" % conn_id)
+        print("}")
+
+    # Select/Deselect/Toggle All Connections functions
+    print("function select_all() {")
+    for conn_id, frames_ids in conn_to_frame_map.iteritems():
+        print("  javascript:select_cb_sel_%s();" % conn_id)
+    print("}")
+    print("function deselect_all() {")
+    for conn_id, frames_ids in conn_to_frame_map.iteritems():
+        print("  javascript:deselect_cb_sel_%s();" % conn_id)
+    print("}")
+    print("function toggle_all() {")
+    for conn_id, frames_ids in conn_to_frame_map.iteritems():
+        print("  javascript:toggle_cb_sel_%s();" % conn_id)
+    print("}")
+
+    print("</script>")
+
+    #
+    print(end_head_start_body)
+    #
 
     # file(s) included in this doc
     print("<h3>Log files</h3>")
@@ -226,15 +337,25 @@ table, td, th {
     print("<hr>")
 
     # print the connection peer table
-    print("<h3>Connection peers</h3>")
-    print("<table><tr><th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> <th>Transfer bytes</th> </tr>")
+    print("<h3>Connections</h3>")
+
+    print("<button onclick=\"javascript:select_all()\">Select All</button>")
+    print("<button onclick=\"javascript:deselect_all()\">Deselect All</button>")
+    print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
+    print("<br>")
+
+    print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> <th>Transfer bytes</th> </tr>")
     for i in range(len(log_fns)):
         log_letter = chr(ord('A') + i)
         conn_list = conn_lists[i]
         for conn in conn_list:
-            id = log_letter + "-" + str(conn)
+            id = conn_id_of(log_letter, conn)
             peer = conn_peers[id] if id in conn_peers else ""
-            print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+            print("<tr>")
+            print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
+            print("checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\"> </td>" % (id))
+
+            print("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
                   (id, conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
     print("</table>")
     print("<hr>")
@@ -242,7 +363,9 @@ table, td, th {
     # the proton log lines
     print("<h3>Log data</h3>")
     for plf in tree:
+        print("<div width=\"100%%\" style=\"display:block  margin-bottom: 2px\" id=\"%s\">" % plf.fid)
         print(plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>")
+        print("</div>")
     print("<hr>")
 
     # data traversing network

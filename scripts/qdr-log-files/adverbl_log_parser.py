@@ -75,6 +75,7 @@ class LogLineData():
         self.transfer_short_name = ""
         self.is_policy_trace = False # line is POLICY (trace)
         self.is_server_info = False # line is SERVER (info)
+        self.fid = "" # Log line (frame) id as used in javascript code
 
     def __repr__(self):
         return self._representation()
@@ -105,6 +106,12 @@ class LogLineData():
         all.append("last : '%s'" % self.last)
         all.append("settled : '%s'" % self.settled)
         all.append("transfer_data : '%s'" % self.transfer_data)
+        all.append("transfer_size : '%s'" % self.transfer_size)
+        all.append("transfer_short_name : '%s'" % self.transfer_short_name)
+        all.append("is_policy_trace : '%s'" % self.is_policy_trace)
+        all.append("is_server_info : '%s'" % self.is_server_info)
+        all.append("fid : '%s'" % self.fid)
+
         return ('\n'.join(all))
 
 
@@ -640,6 +647,7 @@ class ParsedLogLine(object):
         self.oline = _line        # original line
         self.prefix = _prefix     # router prefix
         self.lineno = _lineno     # log line number
+        self.fid = "f_" + self.prefix + "_" + str(self.lineno) # frame id
         self.shorteners = _shorteners # name shorteners
 
         self.line = _line         # working line chopped, trimmed
@@ -695,7 +703,7 @@ class ParsedLogLine(object):
         self.line = self.line[ste + 1:]
 
         # create decorated connection id
-        self.data.conn_id = self.prefix + "-" + self.data.conn_num
+        self.data.conn_id = self.prefix + "_" + self.data.conn_num
 
         # get the session (channel) number
         if self.line.startswith(':'):
