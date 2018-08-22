@@ -301,7 +301,7 @@ def main_except(argv):
     #
     # Start producing the output stream
     #
-    print (fixed_head)
+    print (fixed_head())
 
     # output the frame show/hide functions into the header
     for conn_id, plfs in conn_to_frame_map.iteritems():
