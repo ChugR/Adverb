@@ -63,171 +63,9 @@ def nbsp():
     return "&#160;"
 
 
-def log_line_sort_key(lfl):
-    return lfl.datetime
-
-
-def get_some_field(fn, fld_prefix):
-    '''
-    Extract some string from a log file
-    :param fn: the path to the log file
-    :param fnd_prefix: text before the intended field
-    :return: field text or 'unknown'
-    '''
-    with open(fn, 'r') as infile:
-        for line in infile:
-            st = line.find(fld_prefix)
-            if st > 0:
-                res = line[(st + len(fld_prefix)):].strip().split()[0]
-                return res
-    return "unknown"
-
-
-def time_offset(ttest, t0):
-    delta = ttest - t0
-    t = float(delta.seconds) + float(delta.microseconds) / 1000000.0
-    return "%0.06f" % t
-
-
-def get_router_version(fn):
-    return get_some_field(fn, "ROUTER (info) Version:")
-
-
-def get_router_id(fn):
-    return get_some_field(fn, "SERVER (info) Container Name:")
-
-
-def conn_id_of(log_letter, conn_num):
-    return log_letter + "_" + str(conn_num)
-
-
-def parse_log_file(fn, log_id, ooo_tracker, shorteners):
-    '''
-    Given a file name, return the parsed lines for display
-    :param fn: file name
-    :param log_id: router id (prefix letter)
-    :return: list of ParsedLogLines
-    '''
-    lineno = 0
-    parsed_lines = []
-    with open(fn, 'r') as infile:
-        for line in infile:
-            lineno += 1
-            if lineno == 162:
-                pass # break
-            ooo_tracker.process_line(lineno, line)
-            if "[" in line and "]" in line:
-                try:
-                    pl = ParsedLogLine(log_id, lineno, line, shorteners)
-                    if pl is not None:
-                        parsed_lines.append(pl)
-                except ValueError as ve:
-                    pass
-                except Exception as e:
-                    #t, v, tb = sys.exc_info()
-                    if hasattr(e, 'message'):
-                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e.message))
-                    else:
-                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e))
-                    #raise t, v, tb
-    return parsed_lines
-
-#
-#
-def main_except(argv):
-    #pdb.set_trace()
-    """
-    Given a list of log file names, send the javascript web page to stdout
-    """
-    if len(sys.argv) < 2:
-        sys.exit('Usage: %s log-file-name' % sys.argv[0])
-
-    log_char_base = 'A'
-    log_array = []
-    log_fns = []
-    ooo_array = []
-
-    # the discovered container names for each router
-    router_ids = []
-
-    # list of list of connections as discovered in files
-    # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]
-    conn_lists = []
-
-    # connection direction. Who oritinated the connection?
-
-    # connection peers
-    # key=decorated name 'A_3'
-    conn_peers = {}         # val = peer container-id
-    conn_dirs = {}          # val = direction arrow
-    conn_log_lines = {}     # val = count of log lines
-    conn_xfer_bytes = {}    # val = transfer byte count
-
-    shorteners = Shorteners()
-
-    for log_i in range(1, len(sys.argv)):
-        log_letter = chr(ord(log_char_base) + log_i - 1) # A, B, C, ...
-        arg_log_file = sys.argv[log_i]
-        log_fns.append(arg_log_file)
-
-        if not os.path.exists(arg_log_file):
-            sys.exit('ERROR: log file %s was not found!' % arg_log_file)
-
-        # parse the log file
-        ooo = LogLinesOoo(log_letter)
-        ooo_array.append(ooo)
-        tree = parse_log_file(arg_log_file, log_letter, ooo, shorteners)
-        if len(tree) == 0:
-            sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
-
-        # marshall facts about the run
-        router_ids.append(get_router_id(arg_log_file))
-        conns = []
-        for item in tree:
-            # first-instance handling
-            if not int(item.data.conn_num) in conns:
-                conns.append(int(item.data.conn_num))
-                cdir = ""
-                if not item.data.direction == "":
-                    cdir = item.data.direction
-                else:
-                    if "Connecting" in item.data.web_show_str:
-                        cdir = item.data.direction_out()
-                    elif "Accepting" in item.data.web_show_str:
-                        cdir = item.data.direction_in()
-                conn_dirs[item.data.conn_id] = cdir
-                conn_log_lines[item.data.conn_id] = 0
-                conn_xfer_bytes[item.data.conn_id] = 0
-            # inbound open handling
-            if item.data.name == "open" and item.data.direction == item.data.direction_in():
-                if item.data.conn_id in conn_peers:
-                    sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (arg_log_file, item.data.conn_id))
-                conn_peers[item.data.conn_id] = item.data.conn_peer
-            # per-log-line count
-            conn_log_lines[item.data.conn_id] += 1
-            # transfer byte count
-            if item.data.name == "transfer":
-                conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
-        conn_lists.append(sorted(conns))
-
-        log_array += tree
-
-    tree = sorted(log_array, key=lambda lfl: lfl.datetime)
-
-    # create a map of (connection, [list of associated frames])
-    conn_to_frame_map = {}
-    for i in range(len(log_fns)):
-        log_letter = chr(ord('A') + i)
-        conn_list = conn_lists[i]
-        for conn in conn_list:
-            id = conn_id_of(log_letter, conn)
-            conn_to_frame_map[id] = []
-    for plf in tree:
-        conn_to_frame_map[plf.data.conn_id].append(plf)
-
     # html head, start body
-    fixed_head = '''
-<!DOCTYPE html>
+def fixed_head():
+    return '''<!DOCTYPE html>
 <html>
 <head>
 <title>Adverbl Analysis - qpid-dispatch router logs</title>
@@ -281,10 +119,188 @@ function go_back()
   window.history.back();
 }
 '''
-    end_head_start_body = '''
-</head>
-<body>
-'''
+
+
+def get_some_field(fn, fld_prefix):
+    '''
+    Extract some string from a log file using simple text search.
+    A typical call is:
+        get_some_field(fn, "ROUTER (info) Version:")
+    This finds the version field without all the formal parsing complications
+    :param fn: the path to the log file
+    :param fnd_prefix: text before the intended field
+    :return: field text or 'unknown'
+    '''
+    with open(fn, 'r') as infile:
+        for line in infile:
+            st = line.find(fld_prefix)
+            if st > 0:
+                res = line[(st + len(fld_prefix)):].strip().split()[0]
+                return res
+    return "unknown"
+
+
+def time_offset(ttest, t0):
+    '''
+    Return a string time delta between two datetime objects in seconds formatted
+    to six significant decimal places.
+    :param ttest:
+    :param t0:
+    :return:
+    '''
+    delta = ttest - t0
+    t = float(delta.seconds) + float(delta.microseconds) / 1000000.0
+    return "%0.06f" % t
+
+
+def get_router_version(fn):
+    return get_some_field(fn, "ROUTER (info) Version:")
+
+
+def get_router_id(fn):
+    return get_some_field(fn, "SERVER (info) Container Name:")
+
+
+def conn_id_of(log_letter, conn_num):
+    '''
+    Construct the decorated connection id given a log letter and connection number
+    :param log_letter:
+    :param conn_num:
+    :return:
+    '''
+    return log_letter + "_" + str(conn_num)
+
+
+def parse_log_file(fn, log_id, ooo_tracker, shorteners):
+    '''
+    Given a file name, return the parsed lines for display.
+    Lines that don't parse are identified on stderr and then discarded.
+    :param fn: file name
+    :param log_id: router id (prefix letter)
+    :return: list of ParsedLogLines
+    '''
+    lineno = 0
+    parsed_lines = []
+    with open(fn, 'r') as infile:
+        for line in infile:
+            lineno += 1
+            if lineno == 162:
+                pass # break
+            ooo_tracker.process_line(lineno, line)
+            if "[" in line and "]" in line:
+                try:
+                    pl = ParsedLogLine(log_id, lineno, line, shorteners)
+                    if pl is not None:
+                        parsed_lines.append(pl)
+                except ValueError as ve:
+                    pass
+                except Exception as e:
+                    #t, v, tb = sys.exc_info()
+                    if hasattr(e, 'message'):
+                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e.message))
+                    else:
+                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e))
+                    #raise t, v, tb
+    return parsed_lines
+
+#
+#
+def main_except(argv):
+    #pdb.set_trace()
+    """
+    Given a list of log file names, send the javascript web page to stdout
+    """
+    if len(sys.argv) < 2:
+        sys.exit('Usage: %s log-file-name [log-file-name ...]' % sys.argv[0])
+
+    log_char_base = 'A'
+    log_array = []
+    log_fns = []
+    ooo_array = []
+
+    # the discovered container names for each router
+    router_ids = []
+
+    # list of list of connections as discovered in files
+    # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]
+    conn_lists = []
+
+    # connection direction. Who oritinated the connection?
+
+    # connection peers
+    # key=decorated name 'A_3'
+    conn_peers = {}         # val = peer container-id
+    conn_dirs = {}          # val = direction arrow
+    conn_log_lines = {}     # val = count of log lines
+    conn_xfer_bytes = {}    # val = transfer byte count
+
+    shorteners = Shorteners()
+
+    # process the log files and add the results to log_array
+    for log_i in range(1, len(sys.argv)):
+        log_letter = chr(ord(log_char_base) + log_i - 1) # A, B, C, ...
+        arg_log_file = sys.argv[log_i]
+        log_fns.append(arg_log_file)
+
+        if not os.path.exists(arg_log_file):
+            sys.exit('ERROR: log file %s was not found!' % arg_log_file)
+
+        # parse the log file
+        ooo = LogLinesOoo(log_letter)
+        ooo_array.append(ooo)
+        tree = parse_log_file(arg_log_file, log_letter, ooo, shorteners)
+        if len(tree) == 0:
+            sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
+
+        # marshall facts about the run
+        router_ids.append(get_router_id(arg_log_file))
+        conns = []
+        for item in tree:
+            # first-instance handling
+            if not int(item.data.conn_num) in conns:
+                conns.append(int(item.data.conn_num))
+                cdir = ""
+                if not item.data.direction == "":
+                    cdir = item.data.direction
+                else:
+                    if "Connecting" in item.data.web_show_str:
+                        cdir = item.data.direction_out()
+                    elif "Accepting" in item.data.web_show_str:
+                        cdir = item.data.direction_in()
+                conn_dirs[item.data.conn_id] = cdir
+                conn_log_lines[item.data.conn_id] = 0
+                conn_xfer_bytes[item.data.conn_id] = 0
+            # inbound open handling
+            if item.data.name == "open" and item.data.direction == item.data.direction_in():
+                if item.data.conn_id in conn_peers:
+                    sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (arg_log_file, item.data.conn_id))
+                conn_peers[item.data.conn_id] = item.data.conn_peer
+            # per-log-line count
+            conn_log_lines[item.data.conn_id] += 1
+            # transfer byte count
+            if item.data.name == "transfer":
+                conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
+        conn_lists.append(sorted(conns))
+
+        log_array += tree
+
+    # sort the combined log entries based on the log line timestamps
+    tree = sorted(log_array, key=lambda lfl: lfl.datetime)
+
+    # create a map with key=connectionId, val=[list of associated frames])
+    conn_to_frame_map = {}
+    for i in range(len(log_fns)):
+        log_letter = chr(ord('A') + i)
+        conn_list = conn_lists[i]
+        for conn in conn_list:
+            id = conn_id_of(log_letter, conn)
+            conn_to_frame_map[id] = []
+    for plf in tree:
+        conn_to_frame_map[plf.data.conn_id].append(plf)
+
+    #
+    # Start producing the output stream
+    #
     print (fixed_head)
 
     # output the frame show/hide functions into the header
@@ -336,10 +352,10 @@ function go_back()
         print("  javascript:toggle_cb_sel_%s();" % conn_id)
     print("}")
 
-    print("</script>")
-
     #
-    print(end_head_start_body)
+    print("</script>")
+    print("</head>")
+    print("<body>")
     #
 
     # Table of contents
@@ -352,6 +368,7 @@ function go_back()
     print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
     print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
     print("</ul>")
+
     # file(s) included in this doc
     print("<a name=\"c_logfiles\"></a>")
     print("<h3>Log files</h3>")
@@ -373,7 +390,8 @@ function go_back()
     print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
     print("</p>")
 
-    print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> <th>Transfer bytes</th> </tr>")
+    print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> "
+          "<th>Transfer bytes</th> </tr>")
     tConn = 0
     tLines = 0
     tBytes = 0
@@ -530,7 +548,7 @@ function go_back()
         print("</table>")
 
     print("</body>")
-    # all done
+
 
 def main(argv):
     try:
