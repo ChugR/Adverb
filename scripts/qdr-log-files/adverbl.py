@@ -56,6 +56,13 @@ def lozenge():
     return "&#9674;"
 
 
+def nbsp():
+    '''
+    :return: HTML Non-breaking space
+    '''
+    return "&#160;"
+
+
 def log_line_sort_key(lfl):
     return lfl.datetime
 
@@ -340,6 +347,7 @@ function go_back()
     print("<ul>")
     print("<li><a href=\"#c_logfiles\">Log files</a></li>")
     print("<li><a href=\"#c_connections\">Connections</a></li>")
+    print("<li><a href=\"#c_noteworthy\">Noteworthy log lines</a></li>")
     print("<li><a href=\"#c_logdata\">Log data</a></li>")
     print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
     print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
@@ -384,19 +392,67 @@ function go_back()
                   (id, conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
             tLines += conn_log_lines[id]
             tBytes += conn_xfer_bytes[id]
-    print("<td>Sum</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
+    print("<td>N</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
           (tConn, tLines, tBytes))
 
     print("</table>")
     print("<hr>")
 
+    # noteworthy log lines: highlight errors and stuff
+    print("<a name=\"c_noteworthy\"></a>")
+    print("<h3>Noteworthy</h3>")
+    nErrors = 0
+    nAborted = 0
+    for plf in tree:
+        if plf.data.amqp_error:
+            nErrors += 1
+        if plf.data.transfer_aborted:
+            nAborted += 1
+    # amqp errors
+    print("<a href=\"javascript:toggle_node('noteworthy_errors')\">%s%s</a> AMQP errors: %d<br>" %
+          (lozenge(), nbsp(), nErrors))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_errors\">")
+    for plf in tree:
+        if plf.data.amqp_error:
+            print("<a href=\"#%s\">line %s</a> %s %s %s<br>" %
+                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str))
+    print("</div>")
+    # transfers with abort=true
+    print("<a href=\"javascript:toggle_node('noteworthy_aborts')\">%s%s</a> Aborted transfers: %d<br>" %
+          (lozenge(), nbsp(), nAborted))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_aborts\">")
+    for plf in tree:
+        if plf.data.transfer_aborted:
+            print("<a href=\"#%s\">line %s</a> %s %s %s<br>" %
+                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str))
+    print("</div>")
+    print("<hr>")
+
     # the proton log lines
+    # log lines in         f_A_116
+    # log line details in  f_A_116_d
     print("<a name=\"c_logdata\"></a>")
     print("<h3>Log data</h3>")
     for plf in tree:
+        dict = plf.data.described_type.dict
         print("<div width=\"100%%\" style=\"display:block  margin-bottom: 2px\" id=\"%s\">" % plf.fid)
         print("<a name=\"%s\"></a>" % plf.fid)
-        print(plf.datetime, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, plf.data.web_show_str, "<br>")
+        detailname = plf.fid + "_d"
+        loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, lozenge(), nbsp())
+        print(loz, plf.datetime, "l:", plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
+              plf.data.web_show_str, "<br>")
+        print(" <div width=\"100%%\"; "
+              "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+              "id=\"%s\">" %
+              (detailname))
+        for key in sorted(dict.iterkeys()):
+            val = dict[key]
+            print("%s : %s <br>" % (key, cgi.escape( str(val) )))
+        print("</div>")
         print("</div>")
     print("<hr>")
 
@@ -412,12 +468,14 @@ function go_back()
                 break
         print("<a name=\"%s\"></a> <h4>%s (%s)" % (sname, sname, size))
         print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, lozenge()))
-        print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" % ("data_" + sname))
+        print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" %
+              ("data_" + sname))
         print(" ",  shorteners.short_data_names.longname(i, True))
         print("</div> </span>")
         print("</h4>")
         print("<table>")
-        print("<tr><th>Link</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> <th>T delta</th> <th>T elapsed</th></tr>")
+        print("<tr><th>Link</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> "
+              "<th>T delta</th> <th>T elapsed</th></tr>")
         t0 = None
         tlast = None
         for plf in tree:
@@ -433,7 +491,8 @@ function go_back()
                     tlast = plf.datetime
                 peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
                 link = "<a href=\"#%s\">src</a>" % plf.fid
-                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td></tr>" %
+                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
+                      "<td>%s</td> <td>%s</td></tr>" %
                       (link, plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
         print("</table>")
 

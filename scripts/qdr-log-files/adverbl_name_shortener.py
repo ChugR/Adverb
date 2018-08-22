@@ -70,7 +70,7 @@ class ShortNames():
 
     def longname(self, idx, cgi_escape=False):
         '''
-        Get the cgi.excape'd long name
+        Get the cgi.escape'd long name
         :param idx:
         :param cgi_escape: true if caller wants the string for html display
         :return:

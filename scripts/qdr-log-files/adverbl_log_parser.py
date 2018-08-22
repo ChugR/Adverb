@@ -73,9 +73,11 @@ class LogLineData():
         self.transfer_data = ""  # protonized transfer data value
         self.transfer_size = ""  # size declared by number in parenthesis
         self.transfer_short_name = ""
+        self.transfer_aborted = False
         self.is_policy_trace = False # line is POLICY (trace)
         self.is_server_info = False # line is SERVER (info)
         self.fid = "" # Log line (frame) id as used in javascript code
+        self.amqp_error = False
 
     def __repr__(self):
         return self._representation()
@@ -108,9 +110,11 @@ class LogLineData():
         all.append("transfer_data : '%s'" % self.transfer_data)
         all.append("transfer_size : '%s'" % self.transfer_size)
         all.append("transfer_short_name : '%s'" % self.transfer_short_name)
+        all.append("transfer_aborted : %s" % self.transfer_aborted)
         all.append("is_policy_trace : '%s'" % self.is_policy_trace)
         all.append("is_server_info : '%s'" % self.is_server_info)
         all.append("fid : '%s'" % self.fid)
+        all.append("amqp_error : '%s'" % self.amqp_error)
 
         return ('\n'.join(all))
 
@@ -172,7 +176,7 @@ class DescribedType():
             val = val[:-1]
         self.dict[key] = val
 
-    def transfer_tail_key(self):
+    def process_transfer_tail_key(self):
         keys = ["batchable", "aborted", "resume", "state", "rcv-settle-mode", "more", "settled", "message-format"]
         for key in keys:
             idx = self.line.rfind(key)
@@ -205,7 +209,7 @@ class DescribedType():
         self.line = self.line[(len(fDelId) + 1):]
 
         # process fields from tail
-        while len(self.line) > 0 and self.transfer_tail_key():
+        while len(self.line) > 0 and self.process_transfer_tail_key():
             pass
 
         # the remainder, no matter how unlikely, must be the delivery-tag
@@ -414,8 +418,9 @@ class ParsedLogLine(object):
             v_aborted = self.resdict_value(resdict, "aborted", None)
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
             aborted = ""
-            if not v_aborted is None:
-                aborted = " <span style=\"background-color:yellow\">aborted</span>" if v_aborted == '1' else ""
+            if not v_aborted is None and v_aborted == 'true':
+                res.transfer_aborted = True
+                aborted = " <span style=\"background-color:yellow\">aborted</span>"
             self.transfer_short_name = self.shorteners.short_data_names.translate(res.transfer_data)
             showdat = "<a href=\"#%s\">%s</a>" % (self.transfer_short_name, self.transfer_short_name)
             res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s - %s bytes" % (
@@ -615,6 +620,11 @@ class ParsedLogLine(object):
         else:
             res.web_show_str = "HELP I'M A ROCK - Unknown performative: %s" % perf
 
+        if "error" in resdict:
+            res.amqp_error = True
+            res.web_show_str += (" <span style=\"background-color:yellow\">error</span> "
+                        "%s %s" % (resdict["error"].dict["condition"], resdict["error"].dict["description"]))
+
     def __init__(self, _prefix, _lineno, _line, _shorteners):
         '''
         Process a naked qpid-dispatch log line
@@ -741,12 +751,15 @@ class ParsedLogLine(object):
             # from the '(size) "data"'. Stick the required '(size) data' into
             # data.transfer_data and delete it from the line.
             rz = re.compile(r'\] \(\d+\) \"').search(self.line)
-            if len(rz.regs) == 0:
-                raise ValueError("Transfer does not have size separator of form '(NNN)': %s" % (self.line))
-            splitSt, splitTo = rz.regs[0]
-            self.data.transfer_size = self.line[ splitSt + 3 : splitTo - 3 ]
-            self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
-            self.line = self.line[ : splitSt + 1 ]
+            # aborted transfers may or may not have size/data in the log line
+            if not rz is None and len(rz.regs) > 0:
+                splitSt, splitTo = rz.regs[0]
+                self.data.transfer_size = self.line[ splitSt + 3 : splitTo - 3 ]
+                self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
+                self.line = self.line[ : splitSt + 1 ]
+            else:
+                self.data.transfer_size = "0"
+                self.data.transfer_data = "(none)"
 
         if DescribedType.is_dtype_name ( dname ) :
             self.data.described_type.parse(dname, self.line)
