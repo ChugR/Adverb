@@ -366,7 +366,9 @@ def main_except(argv):
     print("<li><a href=\"#c_noteworthy\">Noteworthy log lines</a></li>")
     print("<li><a href=\"#c_logdata\">Log data</a></li>")
     print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
+    print("<li><a href=\"#c_linkprogress\">Link name propagation</a></li>")
     print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
+    print("<li><a href=\"#c_linkdump\">Link name index</a></li>")
     print("</ul>")
 
     # file(s) included in this doc
@@ -516,10 +518,49 @@ def main_except(argv):
 
     print("<hr>")
 
+    # link names traversing network
+    print("<a name=\"c_linkprogress\"></a>")
+    print("<h3>Link name propagation</h3>")
+    for i in range(0, shorteners.short_link_names.len()):
+        if shorteners.short_link_names.len() == 0:
+            break
+        sname = shorteners.short_link_names.shortname(i)
+        print("<a name=\"%s\"></a> <h4>%s" % (sname, sname))
+        print(" <span> <div width=\"100%%\"; style=\"display:block; font-weight: normal; margin-bottom: 2px\" >")
+        print(shorteners.short_link_names.longname(i, True))
+        print("</div> </span>")
+        print("</h4>")
+        print("<table>")
+        print("<tr><th>src</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> "
+              "<th>T delta</th> <th>T elapsed</th></tr>")
+        t0 = None
+        tlast = None
+        for plf in tree:
+            if plf.data.name == "attach" and plf.data.link_short_name == sname:
+                if t0 is None:
+                    t0 = plf.datetime
+                    delta = "0.000000"
+                    epsed = "0.000000"
+                else:
+                    delta = time_offset(plf.datetime, tlast)
+                    epsed = time_offset(plf.datetime, t0)
+                tlast = plf.datetime
+                peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
+                link = "<a href=\"#%s\">src</a>" % plf.fid
+                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
+                      "<td>%s</td> <td>%s</td></tr>" %
+                      (link, plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
+        print("</table>")
+
+    print("<hr>")
+
 
     # short data index
     print("<a name=\"c_msgdump\"></a>")
     shorteners.short_data_names.htmlDump(True)
+
+    print("<a name=\"c_linkdump\"></a>")
+    shorteners.short_link_names.htmlDump(True)
 
     # Out-of-order histogram
     # Don't print if all zeros

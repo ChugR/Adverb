@@ -74,6 +74,7 @@ class LogLineData():
         self.transfer_size = ""  # size declared by number in parenthesis
         self.transfer_short_name = ""
         self.transfer_aborted = False
+        self.link_short_name = ""
         self.is_policy_trace = False # line is POLICY (trace)
         self.is_server_info = False # line is SERVER (info)
         self.fid = "" # Log line (frame) id as used in javascript code
@@ -111,6 +112,7 @@ class LogLineData():
         all.append("transfer_size : '%s'" % self.transfer_size)
         all.append("transfer_short_name : '%s'" % self.transfer_short_name)
         all.append("transfer_aborted : %s" % self.transfer_aborted)
+        all.append("link_short_name : %s" % self.link_short_name)
         all.append("is_policy_trace : '%s'" % self.is_policy_trace)
         all.append("is_server_info : '%s'" % self.is_server_info)
         all.append("fid : '%s'" % self.fid)
@@ -373,6 +375,7 @@ class ParsedLogLine(object):
             res.handle = resdict["handle"]
             res.role = "receiver" if resdict["role"] == "true" else "sender"
             name = self.resdict_value(resdict, "name", "None")
+            res.link_short_name = self.shorteners.short_link_names.translate(name)
             tmpsrc = self.resdict_value(resdict, "source", None)
             tmptgt = self.resdict_value(resdict, "target", None)
             res.snd_settle_mode = self.sender_settle_mode_of(resdict["snd-settle-mode"]) if "snd-settle-mode" in resdict else "mixed"
@@ -388,14 +391,14 @@ class ParsedLogLine(object):
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
             '''
             TODO:
-            name = short_link_names.translate(name)
             res.source = short_endp_names.translate(res.source)
             res.target = short_endp_names.translate(res.target)
             res.snd_settle_mode = extract_name(tmpssm)
             res.rcv_settle_mode = extract_name(tmprsm)
             '''
             res.web_show_str = ("<strong>%s</strong> %s %s %s (source: %s, target: %s)" %
-                                (res.name, colorize_bg(res.channel_handle), res.role, name, res.source, res.target))
+                                (res.name, colorize_bg(res.channel_handle), res.role, res.link_short_name,
+                                 res.source, res.target))
 
         elif perf == 0x13:
             # Performative: flow [channel,handle]

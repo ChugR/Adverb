@@ -32,7 +32,15 @@ class Splitter():
     '''
     @staticmethod
     def split(line):
-        #print ("Splitter.split sees: " + line[ : (len(line) if len(line) < 200 else 200)])
+        '''
+        Split a log line into fields.
+         * allow commas and spaces in quoted strings.
+         * split on ', ' and on ' '.
+           strip trailing commas between fields.
+         * quoted fields must have both quotes
+        :param line:
+        :return:
+        '''
         result = []
         indqs = False
         pending_comma = False
@@ -46,19 +54,21 @@ class Splitter():
                 indqs = not indqs
                 res += c
             elif c == ',':
+                if pending_comma:
+                    res += c
                 pending_comma = True
             elif c == ' ':
-                    if indqs:
+                if indqs:
+                    if pending_comma:
+                        res += ','
+                        pending_comma = False
+                    res += c
+                else:
+                    if not res == '':
                         if pending_comma:
-                            res += ','
                             pending_comma = False
-                        res += c
-                    else:
-                        if not res == '':
-                            if pending_comma:
-                                pending_comma = False
-                            result.append(res)
-                            res = ''
+                        result.append(res)
+                        res = ''
             else:
                 res += c
         if not res == '':
