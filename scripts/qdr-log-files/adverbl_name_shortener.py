@@ -30,10 +30,10 @@ class ShortNames():
     Names longer than threshold are shortened
     Each class has a prefix used when the table is dumped as HTML
     '''
-    def __init__(self, prefixText):
+    def __init__(self, prefixText, _threshold=25):
         self.longnames = []
         self.prefix = prefixText
-        self.threshold = 25
+        self.threshold = _threshold
 
     def translate(self, lname):
         '''
@@ -97,7 +97,7 @@ class ShortNames():
 
 class Shorteners():
     def __init__(self):
-        self.short_link_names = ShortNames("link")
+        self.short_link_names = ShortNames("link", 5)
         self.short_endp_names = ShortNames("endpoint")
         self.short_data_names = ShortNames("transfer")
 
