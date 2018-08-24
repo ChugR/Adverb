@@ -223,9 +223,8 @@ def main_except(argv):
 
     # list of list of connections as discovered in files
     # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]
+    # Note that the list of connections are not necessarily in order or a packed sequence
     conn_lists = []
-
-    # connection direction. Who oritinated the connection?
 
     # connection peers
     # key=decorated name 'A_3'
@@ -412,7 +411,7 @@ def main_except(argv):
                   (id, conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
             tLines += conn_log_lines[id]
             tBytes += conn_xfer_bytes[id]
-    print("<td>N</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
+    print("<td>Total</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
           (tConn, tLines, tBytes))
 
     print("</table>")

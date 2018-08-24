@@ -75,6 +75,7 @@ class LogLineData():
         self.transfer_short_name = ""
         self.transfer_aborted = False
         self.link_short_name = ""
+        self.link_short_name_popup = ""
         self.is_policy_trace = False # line is POLICY (trace)
         self.is_server_info = False # line is SERVER (info)
         self.fid = "" # Log line (frame) id as used in javascript code
@@ -160,7 +161,6 @@ class DescribedType():
         self.dict = {}
         self.dtype_name = "unparsed"
         self.dtype_number = 0
-        self.extra = []
 
     def __repr__(self):
         return self._representation()
@@ -230,7 +230,8 @@ class DescribedType():
         :return:
         '''
         self.dtype = _dtype
-        self.line = str(_line)
+        self.oline = str(_line)
+        self.line = self.oline
         self.dtype_name = DescribedType.dtype_name(self.dtype)
         self.dtype_number = DescribedType.dtype_number(self.dtype)
 
@@ -375,7 +376,8 @@ class ParsedLogLine(object):
             res.handle = resdict["handle"]
             res.role = "receiver" if resdict["role"] == "true" else "sender"
             name = self.resdict_value(resdict, "name", "None")
-            res.link_short_name = self.shorteners.short_link_names.translate(name)
+            res.link_short_name_popup = self.shorteners.short_link_names.translate(name, True)
+            res.link_short_name = self.shorteners.short_link_names.translate(name, False)
             tmpsrc = self.resdict_value(resdict, "source", None)
             tmptgt = self.resdict_value(resdict, "target", None)
             res.snd_settle_mode = self.sender_settle_mode_of(resdict["snd-settle-mode"]) if "snd-settle-mode" in resdict else "mixed"
@@ -397,7 +399,7 @@ class ParsedLogLine(object):
             res.rcv_settle_mode = extract_name(tmprsm)
             '''
             res.web_show_str = ("<strong>%s</strong> %s %s %s (source: %s, target: %s)" %
-                                (res.name, colorize_bg(res.channel_handle), res.role, res.link_short_name,
+                                (res.name, colorize_bg(res.channel_handle), res.role, res.link_short_name_popup,
                                  res.source, res.target))
 
         elif perf == 0x13:

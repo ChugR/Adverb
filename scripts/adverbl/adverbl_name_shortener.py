@@ -35,7 +35,7 @@ class ShortNames():
         self.prefix = prefixText
         self.threshold = _threshold
 
-    def translate(self, lname):
+    def translate(self, lname, show_popup=False):
         '''
         Translate a long name into a short name, maybe.
         Memorize all names, translated or not
@@ -44,6 +44,8 @@ class ShortNames():
         not-so-long name.
         '''
         idx = 0
+        if lname.startswith("\""):
+            lname = lname[1:-1]
         try:
             idx = self.longnames.index(lname)
         except:
@@ -52,9 +54,10 @@ class ShortNames():
         # return as-given if short enough
         if len(lname) < self.threshold:
             return lname
-        # Multi-kbyte titles don't work well so skip them
-        # return "<span title=\"" + cgi.escape(lname) + "\">" + self.prefix + "_" + str(idx) + "</span>"
-        return self.prefix + "_" + str(idx)
+        if show_popup:
+            return "<span title=\"" + cgi.escape(lname) + "\">" + self.prefix + "_" + str(idx) + "</span>"
+        else:
+            return self.prefix + "_" + str(idx)
 
     def len(self):
         return len(self.longnames)
