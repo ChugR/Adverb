@@ -41,6 +41,7 @@ import cgi
 from adverbl_log_parser import *
 from adverbl_ooo import *
 from adverbl_name_shortener import *
+from adverbl_globals import *
 
 #
 #
@@ -171,7 +172,7 @@ def conn_id_of(log_letter, conn_num):
     return log_letter + "_" + str(conn_num)
 
 
-def parse_log_file(fn, log_id, ooo_tracker, shorteners):
+def parse_log_file(fn, log_id, ooo_tracker, gbls):
     '''
     Given a file name, return the parsed lines for display.
     Lines that don't parse are identified on stderr and then discarded.
@@ -189,7 +190,7 @@ def parse_log_file(fn, log_id, ooo_tracker, shorteners):
             ooo_tracker.process_line(lineno, line)
             if "[" in line and "]" in line:
                 try:
-                    pl = ParsedLogLine(log_id, lineno, line, shorteners)
+                    pl = ParsedLogLine(log_id, lineno, line, gbls)
                     if pl is not None:
                         parsed_lines.append(pl)
                 except ValueError as ve:
@@ -213,33 +214,23 @@ def main_except(argv):
     if len(sys.argv) < 2:
         sys.exit('Usage: %s log-file-name [log-file-name ...]' % sys.argv[0])
 
-    log_char_base = 'A'
+    gbls = adverbl_globals()
+
+    # per log file workspace
+
     log_array = []
-    log_fns = []
     ooo_array = []
-
-    # the discovered container names for each router
-    router_ids = []
-
-    # list of list of connections as discovered in files
-    # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]
-    # Note that the list of connections are not necessarily in order or a packed sequence
-    conn_lists = []
 
     # connection peers
     # key=decorated name 'A_3'
-    conn_peers = {}         # val = peer container-id
-    conn_dirs = {}          # val = direction arrow
     conn_log_lines = {}     # val = count of log lines
     conn_xfer_bytes = {}    # val = transfer byte count
 
-    shorteners = Shorteners()
-
     # process the log files and add the results to log_array
     for log_i in range(1, len(sys.argv)):
-        log_letter = chr(ord(log_char_base) + log_i - 1) # A, B, C, ...
+        log_letter = gbls.log_letter(log_i - 1) # A, B, C, ...
         arg_log_file = sys.argv[log_i]
-        log_fns.append(arg_log_file)
+        gbls.log_fns.append(arg_log_file)
 
         if not os.path.exists(arg_log_file):
             sys.exit('ERROR: log file %s was not found!' % arg_log_file)
@@ -247,12 +238,12 @@ def main_except(argv):
         # parse the log file
         ooo = LogLinesOoo(log_letter)
         ooo_array.append(ooo)
-        tree = parse_log_file(arg_log_file, log_letter, ooo, shorteners)
+        tree = parse_log_file(arg_log_file, log_letter, ooo, gbls)
         if len(tree) == 0:
             sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
 
         # marshall facts about the run
-        router_ids.append(get_router_id(arg_log_file))
+        gbls.router_ids.append(get_router_id(arg_log_file))
         conns = []
         for item in tree:
             # first-instance handling
@@ -266,20 +257,20 @@ def main_except(argv):
                         cdir = item.data.direction_out()
                     elif "Accepting" in item.data.web_show_str:
                         cdir = item.data.direction_in()
-                conn_dirs[item.data.conn_id] = cdir
+                gbls.conn_dirs[item.data.conn_id] = cdir
                 conn_log_lines[item.data.conn_id] = 0
                 conn_xfer_bytes[item.data.conn_id] = 0
             # inbound open handling
             if item.data.name == "open" and item.data.direction == item.data.direction_in():
-                if item.data.conn_id in conn_peers:
+                if item.data.conn_id in gbls.conn_peers:
                     sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (arg_log_file, item.data.conn_id))
-                conn_peers[item.data.conn_id] = item.data.conn_peer
+                gbls.conn_peers[item.data.conn_id] = item.data.conn_peer
             # per-log-line count
             conn_log_lines[item.data.conn_id] += 1
             # transfer byte count
             if item.data.name == "transfer":
                 conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
-        conn_lists.append(sorted(conns))
+        gbls.conn_lists.append(sorted(conns))
 
         log_array += tree
 
@@ -288,9 +279,9 @@ def main_except(argv):
 
     # create a map with key=connectionId, val=[list of associated frames])
     conn_to_frame_map = {}
-    for i in range(len(log_fns)):
-        log_letter = chr(ord('A') + i)
-        conn_list = conn_lists[i]
+    for i in range(len(gbls.log_fns)):
+        log_letter = gbls.log_letter(i)
+        conn_list = gbls.conn_lists[i]
         for conn in conn_list:
             id = conn_id_of(log_letter, conn)
             conn_to_frame_map[id] = []
@@ -374,10 +365,10 @@ def main_except(argv):
     print("<a name=\"c_logfiles\"></a>")
     print("<h3>Log files</h3>")
     print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Log file path</th></tr>")
-    for i in range(len(log_fns)):
-        log_letter = chr(ord('A') + i)
+    for i in range(len(gbls.log_fns)):
         print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-              (log_letter, router_ids[i], get_router_version(log_fns[i]), os.path.abspath(log_fns[i])))
+              (gbls.log_letter(i), gbls.router_ids[i], get_router_version(gbls.log_fns[i]),
+               os.path.abspath(gbls.log_fns[i])))
     print("</table>")
     print("<hr>")
 
@@ -396,19 +387,18 @@ def main_except(argv):
     tConn = 0
     tLines = 0
     tBytes = 0
-    for i in range(len(log_fns)):
-        log_letter = chr(ord('A') + i)
-        conn_list = conn_lists[i]
+    for i in range(len(gbls.log_fns)):
+        conn_list = gbls.conn_lists[i]
         for conn in conn_list:
             tConn += 1
-            id = conn_id_of(log_letter, conn)
-            peer = conn_peers[id] if id in conn_peers else ""
+            id = conn_id_of(gbls.log_letter(i), conn)
+            peer = gbls.conn_peers[id] if id in gbls.conn_peers else ""
             print("<tr>")
             print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
             print("checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\"> </td>" % (id))
 
             print("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-                  (id, conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
+                  (id, gbls.conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
             tLines += conn_log_lines[id]
             tBytes += conn_xfer_bytes[id]
     print("<td>Total</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
@@ -462,7 +452,7 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, lozenge(), nbsp())
-        peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
+        peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
         print(loz, plf.datetime, "l:", plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, peer,
               plf.data.web_show_str, "<br>")
         print(" <div width=\"100%%\"; "
@@ -479,8 +469,8 @@ def main_except(argv):
     # data traversing network
     print("<a name=\"c_messageprogress\"></a>")
     print("<h3>Message progress</h3>")
-    for i in range(0, shorteners.short_data_names.len()):
-        sname = shorteners.short_data_names.shortname(i)
+    for i in range(0, gbls.shorteners.short_data_names.len()):
+        sname = gbls.shorteners.short_data_names.shortname(i)
         size = 0
         for plf in tree:
             if plf.data.name == "transfer" and plf.transfer_short_name == sname:
@@ -490,7 +480,7 @@ def main_except(argv):
         print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, lozenge()))
         print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" %
               ("data_" + sname))
-        print(" ",  shorteners.short_data_names.longname(i, True))
+        print(" ",  gbls.shorteners.short_data_names.longname(i, True))
         print("</div> </span>")
         print("</h4>")
         print("<table>")
@@ -509,7 +499,7 @@ def main_except(argv):
                     delta = time_offset(plf.datetime, tlast)
                     epsed = time_offset(plf.datetime, t0)
                     tlast = plf.datetime
-                peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
+                peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
                 link = "<a href=\"#%s\">src</a>" % plf.fid
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
                       "<td>%s</td> <td>%s</td></tr>" %
@@ -521,13 +511,13 @@ def main_except(argv):
     # link names traversing network
     print("<a name=\"c_linkprogress\"></a>")
     print("<h3>Link name propagation</h3>")
-    for i in range(0, shorteners.short_link_names.len()):
-        if shorteners.short_link_names.len() == 0:
+    for i in range(0, gbls.shorteners.short_link_names.len()):
+        if gbls.shorteners.short_link_names.len() == 0:
             break
-        sname = shorteners.short_link_names.shortname(i)
+        sname = gbls.shorteners.short_link_names.shortname(i)
         print("<a name=\"%s\"></a> <h4>%s" % (sname, sname))
         print(" <span> <div width=\"100%%\"; style=\"display:block; font-weight: normal; margin-bottom: 2px\" >")
-        print(shorteners.short_link_names.longname(i, True))
+        print(gbls.shorteners.short_link_names.longname(i, True))
         print("</div> </span>")
         print("</h4>")
         print("<table>")
@@ -545,7 +535,7 @@ def main_except(argv):
                     delta = time_offset(plf.datetime, tlast)
                     epsed = time_offset(plf.datetime, t0)
                 tlast = plf.datetime
-                peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
+                peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
                 link = "<a href=\"#%s\">src</a>" % plf.fid
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
                       "<td>%s</td> <td>%s</td></tr>" %
@@ -557,10 +547,10 @@ def main_except(argv):
 
     # short data index
     print("<a name=\"c_msgdump\"></a>")
-    shorteners.short_data_names.htmlDump(True)
+    gbls.shorteners.short_data_names.htmlDump(True)
 
     print("<a name=\"c_linkdump\"></a>")
-    shorteners.short_link_names.htmlDump(True)
+    gbls.shorteners.short_link_names.htmlDump(True)
 
     # Out-of-order histogram
     # Don't print if all zeros

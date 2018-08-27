@@ -28,6 +28,7 @@ import re
 from adverbl_splitter import *
 from adverbl_test_data import *
 from adverbl_name_shortener import *
+from adverbl_globals import *
 
 
 def colorize_bg(what):
@@ -197,7 +198,7 @@ class DescribedType():
         '''
         # strip leading '[' and trailing ']'
         if not (self.line.startswith('[') and self.line.endswith(']')):
-            raise ValueError("Described type not delimited with square brackets: '%s'" % _line)
+            raise ValueError("Described type not delimited with square brackets: '%s'" % line)
         self.line = self.line[1:]
         self.line = self.line[:-1]
 
@@ -630,7 +631,7 @@ class ParsedLogLine(object):
             res.web_show_str += (" <span style=\"background-color:yellow\">error</span> "
                         "%s %s" % (resdict["error"].dict["condition"], resdict["error"].dict["description"]))
 
-    def __init__(self, _prefix, _lineno, _line, _shorteners):
+    def __init__(self, _prefix, _lineno, _line, _gbls):
         '''
         Process a naked qpid-dispatch log line
         A log line looks like this:
@@ -663,7 +664,7 @@ class ParsedLogLine(object):
         self.prefix = _prefix     # router prefix
         self.lineno = _lineno     # log line number
         self.fid = "f_" + self.prefix + "_" + str(self.lineno) # frame id
-        self.shorteners = _shorteners # name shorteners
+        self.shorteners = _gbls.shorteners # name shorteners
 
         self.line = _line         # working line chopped, trimmed
 
@@ -777,10 +778,10 @@ if __name__ == "__main__":
 
     data_source = TestData()
     data = data_source.data()
-    shorteners = Shorteners()
+    gbls = adverbl_globals()
     try:
         for i in range(len(data)):
-            temp = ParsedLogLine('A', i, data[i], shorteners)
+            temp = ParsedLogLine('A', i, data[i], gbls)
             print(temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str)
         pass
     except:
