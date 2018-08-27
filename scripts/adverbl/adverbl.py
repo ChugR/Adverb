@@ -462,7 +462,8 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, lozenge(), nbsp())
-        print(loz, plf.datetime, "l:", plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
+        peer = conn_peers[plf.data.conn_id] if plf.data.conn_id in conn_peers else ""
+        print(loz, plf.datetime, "l:", plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, peer,
               plf.data.web_show_str, "<br>")
         print(" <div width=\"100%%\"; "
               "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
