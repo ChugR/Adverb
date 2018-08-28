@@ -162,16 +162,6 @@ def get_router_id(fn):
     return get_some_field(fn, "SERVER (info) Container Name:")
 
 
-def conn_id_of(log_letter, conn_num):
-    '''
-    Construct the decorated connection id given a log letter and connection number
-    :param log_letter:
-    :param conn_num:
-    :return:
-    '''
-    return log_letter + "_" + str(conn_num)
-
-
 def parse_log_file(fn, log_id, ooo_tracker, gbls):
     '''
     Given a file name, return the parsed lines for display.
@@ -228,9 +218,10 @@ def main_except(argv):
 
     # process the log files and add the results to log_array
     for log_i in range(1, len(sys.argv)):
-        log_letter = gbls.log_letter(log_i - 1) # A, B, C, ...
+        log_letter = gbls.log_letter_of(log_i - 1) # A, B, C, ...
         arg_log_file = sys.argv[log_i]
         gbls.log_fns.append(arg_log_file)
+        gbls.n_logs += 1
 
         if not os.path.exists(arg_log_file):
             sys.exit('ERROR: log file %s was not found!' % arg_log_file)
@@ -277,16 +268,12 @@ def main_except(argv):
     # sort the combined log entries based on the log line timestamps
     tree = sorted(log_array, key=lambda lfl: lfl.datetime)
 
-    # create a map with key=connectionId, val=[list of associated frames])
-    conn_to_frame_map = {}
-    for i in range(len(gbls.log_fns)):
-        log_letter = gbls.log_letter(i)
-        conn_list = gbls.conn_lists[i]
-        for conn in conn_list:
-            id = conn_id_of(log_letter, conn)
-            conn_to_frame_map[id] = []
+    # populate a map with key=connectionId, val=[list of associated frames])
+    for i in range(gbls.n_logs):
+        for conn in gbls.conn_lists[i]:
+            gbls.conn_to_frame_map[ gbls.conn_id_of( gbls.log_letter_of(i), conn)] = []
     for plf in tree:
-        conn_to_frame_map[plf.data.conn_id].append(plf)
+        gbls.conn_to_frame_map[plf.data.conn_id].append(plf)
 
     #
     # Start producing the output stream
@@ -294,7 +281,7 @@ def main_except(argv):
     print (fixed_head())
 
     # output the frame show/hide functions into the header
-    for conn_id, plfs in conn_to_frame_map.iteritems():
+    for conn_id, plfs in gbls.conn_to_frame_map.iteritems():
         print("function show_%s() {" % conn_id)
         for plf in plfs:
             print("  javascript:show_node(\'%s\');" % plf.fid)
@@ -330,15 +317,15 @@ def main_except(argv):
 
     # Select/Deselect/Toggle All Connections functions
     print("function select_all() {")
-    for conn_id, frames_ids in conn_to_frame_map.iteritems():
+    for conn_id, frames_ids in gbls.conn_to_frame_map.iteritems():
         print("  javascript:select_cb_sel_%s();" % conn_id)
     print("}")
     print("function deselect_all() {")
-    for conn_id, frames_ids in conn_to_frame_map.iteritems():
+    for conn_id, frames_ids in gbls.conn_to_frame_map.iteritems():
         print("  javascript:deselect_cb_sel_%s();" % conn_id)
     print("}")
     print("function toggle_all() {")
-    for conn_id, frames_ids in conn_to_frame_map.iteritems():
+    for conn_id, frames_ids in gbls.conn_to_frame_map.iteritems():
         print("  javascript:toggle_cb_sel_%s();" % conn_id)
     print("}")
 
@@ -365,9 +352,9 @@ def main_except(argv):
     print("<a name=\"c_logfiles\"></a>")
     print("<h3>Log files</h3>")
     print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Log file path</th></tr>")
-    for i in range(len(gbls.log_fns)):
+    for i in range(gbls.n_logs):
         print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-              (gbls.log_letter(i), gbls.router_ids[i], get_router_version(gbls.log_fns[i]),
+              (gbls.log_letter_of(i), gbls.router_ids[i], get_router_version(gbls.log_fns[i]),
                os.path.abspath(gbls.log_fns[i])))
     print("</table>")
     print("<hr>")
@@ -387,11 +374,11 @@ def main_except(argv):
     tConn = 0
     tLines = 0
     tBytes = 0
-    for i in range(len(gbls.log_fns)):
+    for i in range(gbls.n_logs):
         conn_list = gbls.conn_lists[i]
         for conn in conn_list:
             tConn += 1
-            id = conn_id_of(gbls.log_letter(i), conn)
+            id = gbls.conn_id_of(gbls.log_letter_of(i), conn)
             peer = gbls.conn_peers[id] if id in gbls.conn_peers else ""
             print("<tr>")
             print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
