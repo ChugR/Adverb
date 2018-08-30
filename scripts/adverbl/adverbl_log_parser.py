@@ -44,6 +44,12 @@ class LogLineData():
     def direction_out(self):
         return "->"
 
+    def direction_is_in(self):
+        return self.direction == self.direction_in()
+
+    def direction_is_out(self):
+        return self.direction == self.direction_out()
+
     def __init__(self):
         self.web_show_str = ""
         self.name = ""
@@ -64,6 +70,7 @@ class LogLineData():
         self.flow_cnt_credit = ""  # decorated - '(50,100)'
         self.transfer_id = ""
         self.role = ""
+        self.is_receiver = False
         self.source = ""
         self.target = ""
         self.first = ""  # undecorated number - '10'
@@ -81,6 +88,7 @@ class LogLineData():
         self.is_server_info = False # line is SERVER (info)
         self.fid = "" # Log line (frame) id as used in javascript code
         self.amqp_error = False
+        self.link_class = "normal" # normal, router, router-data (, management?)
 
     def __repr__(self):
         return self._representation()
@@ -119,6 +127,7 @@ class LogLineData():
         all.append("is_server_info : '%s'" % self.is_server_info)
         all.append("fid : '%s'" % self.fid)
         all.append("amqp_error : '%s'" % self.amqp_error)
+        all.append("link_class : '%s'" % self.link_class)
 
         return ('\n'.join(all))
 
@@ -365,6 +374,8 @@ class ParsedLogLine(object):
 
         elif perf == 0x11:
             # Performative: begin [channel,remoteChannel]
+            # TODO: This has a bug where the local and remote channel numbers are confused.
+            #       Usually they are the same. See if anyone notices!
             # res.channel
             res.name = "begin"
             res.remote = self.resdict_value(resdict, "remote-channel", "None)")
@@ -376,6 +387,7 @@ class ParsedLogLine(object):
             res.name = "attach"
             res.handle = resdict["handle"]
             res.role = "receiver" if resdict["role"] == "true" else "sender"
+            res.is_receiver = res.role == "receiver"
             name = self.resdict_value(resdict, "name", "None")
             res.link_short_name_popup = self.shorteners.short_link_names.translate(name, True)
             res.link_short_name = self.shorteners.short_link_names.translate(name, False)
@@ -383,15 +395,24 @@ class ParsedLogLine(object):
             tmptgt = self.resdict_value(resdict, "target", None)
             res.snd_settle_mode = self.sender_settle_mode_of(resdict["snd-settle-mode"]) if "snd-settle-mode" in resdict else "mixed"
             res.rcv_settle_mode = self.receiver_settle_mode_of(resdict["rcv-settle-mode"]) if "rcv-settle-mode" in resdict else "first"
+            caps = ""
             if tmpsrc is not None:
                 res.source = self.resdict_value(tmpsrc.dict, "address", "none")
+                caps = self.resdict_value(tmpsrc.dict, "capabilities", "")
             else:
                 res.source = "none"
             if tmptgt is not None:
                 res.target = self.resdict_value(tmptgt.dict, "address", "none")
+                if caps == "":
+                    caps = self.resdict_value(tmpsrc.dict, "capabilities", "")
             else:
                 res.target = "none"
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
+
+            if 'qd.router-data' in caps:
+                res.link_class = 'router-data'
+            elif 'qd.router' in caps:
+                res.link_class = 'router'
             '''
             TODO:
             res.source = short_endp_names.translate(res.source)
@@ -399,9 +420,9 @@ class ParsedLogLine(object):
             res.snd_settle_mode = extract_name(tmpssm)
             res.rcv_settle_mode = extract_name(tmprsm)
             '''
-            res.web_show_str = ("<strong>%s</strong> %s %s %s (source: %s, target: %s)" %
+            res.web_show_str = ("<strong>%s</strong> %s %s %s (source: %s, target: %s, class: %s)" %
                                 (res.name, colorize_bg(res.channel_handle), res.role, res.link_short_name_popup,
-                                 res.source, res.target))
+                                 res.source, res.target, res.link_class))
 
         elif perf == 0x13:
             # Performative: flow [channel,handle]

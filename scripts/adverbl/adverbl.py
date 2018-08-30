@@ -42,6 +42,7 @@ from adverbl_log_parser import *
 from adverbl_ooo import *
 from adverbl_name_shortener import *
 from adverbl_globals import *
+from adverbl_per_link_details import *
 
 #
 #
@@ -72,6 +73,9 @@ def fixed_head():
 <title>Adverbl Analysis - qpid-dispatch router logs</title>
 
 <style>
+    * { 
+    font-family: sans-serif; 
+}
 table {
     border-collapse: collapse;
 }
@@ -268,12 +272,18 @@ def main_except(argv):
     # sort the combined log entries based on the log line timestamps
     tree = sorted(log_array, key=lambda lfl: lfl.datetime)
 
+    # populate a list with all connectionIds
     # populate a map with key=connectionId, val=[list of associated frames])
     for i in range(gbls.n_logs):
         for conn in gbls.conn_lists[i]:
-            gbls.conn_to_frame_map[ gbls.conn_id_of( gbls.log_letter_of(i), conn)] = []
+            id = gbls.conn_id_of( gbls.log_letter_of(i), conn)
+            gbls.all_conn_names.append(id)
+            gbls.conn_to_frame_map[id] = []
     for plf in tree:
         gbls.conn_to_frame_map[plf.data.conn_id].append(plf)
+
+    # generate connection details and per-connection-session-link relationships
+    gbls.all_details = AllDetails(tree, gbls)
 
     #
     # Start producing the output stream
@@ -340,6 +350,7 @@ def main_except(argv):
     print("<ul>")
     print("<li><a href=\"#c_logfiles\">Log files</a></li>")
     print("<li><a href=\"#c_connections\">Connections</a></li>")
+
     print("<li><a href=\"#c_noteworthy\">Noteworthy log lines</a></li>")
     print("<li><a href=\"#c_logdata\">Log data</a></li>")
     print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
@@ -370,28 +381,40 @@ def main_except(argv):
     print("</p>")
 
     print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> "
-          "<th>Transfer bytes</th> </tr>")
+          "<th>N links</th><th>Transfer bytes</th> <th>AMQP errors</th></tr>")
     tConn = 0
     tLines = 0
     tBytes = 0
+    tErrs = 0
+    tLinks = 0
     for i in range(gbls.n_logs):
         conn_list = gbls.conn_lists[i]
         for conn in conn_list:
             tConn += 1
             id = gbls.conn_id_of(gbls.log_letter_of(i), conn)
             peer = gbls.conn_peers[id] if id in gbls.conn_peers else ""
+            n_links = gbls.all_details.links_in_connection(id)
+            tLinks += n_links
+            errs = sum(1 for plf in gbls.conn_to_frame_map[id] if plf.data.amqp_error)
+            tErrs += errs
             print("<tr>")
             print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
             print("checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\"> </td>" % (id))
 
-            print("<td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-                  (id, gbls.conn_dirs[id], peer, conn_log_lines[id], conn_xfer_bytes[id]))
+            print("<td><a href=\"#cd_%s\">%s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td></tr>" %
+                  (id, id, gbls.conn_dirs[id], peer, conn_log_lines[id], n_links, conn_xfer_bytes[id], errs))
             tLines += conn_log_lines[id]
             tBytes += conn_xfer_bytes[id]
-    print("<td>Total</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td></tr>" %
-          (tConn, tLines, tBytes))
+    print("<td>Total</td><td>%d</td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
+          (tConn, tLines, tLinks, tBytes, tErrs))
 
     print("</table>")
+    print("<hr>")
+
+    # connection details
+    print("<a name=\"c_conndetails\"></a>")
+    print("<h3>Connection Details</h3>")
+    gbls.all_details.show_html()
     print("<hr>")
 
     # noteworthy log lines: highlight errors and stuff
@@ -487,7 +510,7 @@ def main_except(argv):
                     epsed = time_offset(plf.datetime, t0)
                     tlast = plf.datetime
                 peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
-                link = "<a href=\"#%s\">src</a>" % plf.fid
+                link = "<a href=\"#%s\">@</a>" % plf.fid
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
                       "<td>%s</td> <td>%s</td></tr>" %
                       (link, plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed))

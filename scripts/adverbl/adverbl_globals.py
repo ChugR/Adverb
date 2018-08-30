@@ -51,13 +51,18 @@ class adverbl_globals:
     conn_peers = {}         # val = peer container-id
     conn_dirs = {}          # val = direction arrow
 
+    # ordered list of connection names across all routers
+    all_conn_names = []
+
     # create a map with key=connectionId, val=[list of associated frames])
     conn_to_frame_map = {}
 
-    # details map populated by per-link-details
+    # details map populated by per-connection, per-session, per-link details
     conn_details_map = {}
 
     shorteners = Shorteners()
+
+    all_details = None
 
     def log_letter_of(self, idx):
         '''
