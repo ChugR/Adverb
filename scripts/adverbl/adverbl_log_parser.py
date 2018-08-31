@@ -76,6 +76,7 @@ class LogLineData():
         self.first = ""  # undecorated number - '10'
         self.last = ""  # undecorated number - '20'
         self.settled = ""  # Disposition or Transfer settled field
+        self.disposition_state = "?absent?"
         self.snd_settle_mode = ""  # Attach
         self.rcv_settle_mode = ""  # Attach
         self.transfer_data = ""  # protonized transfer data value
@@ -88,7 +89,9 @@ class LogLineData():
         self.is_server_info = False # line is SERVER (info)
         self.fid = "" # Log line (frame) id as used in javascript code
         self.amqp_error = False
-        self.link_class = "normal" # normal, router, router-data (, management?)
+        self.link_class = "normal" # attach sees: normal, router, router-data (, management?)
+        self.disposition_display = ""
+        self.final_disposition = None
 
     def __repr__(self):
         return self._representation()
@@ -441,7 +444,7 @@ class ParsedLogLine(object):
             res.handle = resdict["handle"]
             res.delivery_id = self.resdict_value(resdict, "delivery-id", "none")
             res.delivery_tag = self.resdict_value(resdict, "delivery-tag", "none")
-            res.settled = self.resdict_value(resdict, "settled", None)
+            res.settled = self.resdict_value(resdict, "settled", "false")
             v_aborted = self.resdict_value(resdict, "aborted", None)
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
             aborted = ""
@@ -457,9 +460,13 @@ class ParsedLogLine(object):
             # Performative: disposition [channel] (role first-last)
             res.name = "disposition"
             res.role = "receiver" if resdict["role"] == "true" else "sender"
+            res.is_receiver = res.role == "receiver"
             res.first = self.resdict_value(resdict, "first", "0")
             res.last = self.resdict_value(resdict, "last", res.first)
-            res.settled = self.resdict_value(resdict, "settled", "true")
+            res.settled = self.resdict_value(resdict, "settled", "false")
+            state = resdict.get("state")
+            if not state is None:
+                res.disposition_state = state.dtype_name
             ###    colorize_dispositions_not_accepted(proto, res, global_vars, count_anomalies)
             res.web_show_str = ("<strong>%s</strong>  [%s] (%s %s-%s)" %
                                 (res.name, res.channel, res.role, res.first, res.last))

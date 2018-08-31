@@ -143,21 +143,20 @@ class SessionDetail():
 
         # count of AMQP performatives for this connection that are not accounted
         # properly in link processing
-        self.unaccounted_frame_list = []
+        self.session_frame_list = []
 
         # Session dispositions
-        # dict[delivery-id] = ['disp info 0', 'disp info 1', ...]
-        self.dispositions_rcvd = {} # inbound dispositions
-        self.dispositions_sent = {} # outbound dispositions
-        ## summary is appended to transfer display lines
-        #self.disposition_summary_l2r = {} # client to broker
-        #self.disposition_summary_r2l = {} # broker to client
+        # Sender/receiver dispositions may be sent or received
+        self.rx_rcvr_disposition_map = {} # key=delivery id, val=disposition plf
+        self.rx_sndr_disposition_map = {} # key=delivery id, val=disposition plf
+        self.tx_rcvr_disposition_map = {} # key=delivery id, val=disposition plf
+        self.tx_sndr_disposition_map = {} # key=delivery id, val=disposition plf
 
     def FrameCount(self):
         count = 0
         for link in self.link_list:
             count += len(link.frame_list)
-        count += len(self.unaccounted_frame_list)
+        count += len(self.session_frame_list)
         return count
 
     def FindLinkByName(self, attach_name):
@@ -293,12 +292,101 @@ class AllDetails():
         '''
         return "oops"
 
+
+    def time_offset(self, ttest, t0):
+        '''
+        Return a string time delta between two datetime objects in seconds formatted
+        to six significant decimal places.
+        :param ttest:
+        :param t0:
+        :return:
+        '''
+        delta = ttest - t0
+        t = float(delta.seconds) + float(delta.microseconds) / 1000000.0
+        return "%0.06f" % t
+
     def links_in_connection(self, id):
         conn_details = self.gbls.conn_details_map[id]
         n_links = 0
         for sess in conn_details.session_list:
             n_links += len(sess.link_list)
         return n_links
+
+    def settlement_display(self, transfer, disposition):
+        '''
+        Generate the details for a disposition settlement
+        :param transfer: plf
+        :param disposition: plf
+        :return: display string
+        '''
+        state = disposition.data.disposition_state # accept, reject, release, ...
+        if not state == "accepted":
+            state = "<span style=\"background-color:orange\">%s</span>" % state
+        l2disp = "<a href=\"#%s\">%s</a>" % (disposition.fid, state)
+        sttld = "settled" if disposition.data.settled == "true" else "unsettled"
+        delay = self.time_offset(disposition.datetime, transfer.datetime)
+        return "(%s %s %s S)" % (l2disp, sttld, delay)
+
+    def resolve_settlement(self, link, transfer, rcv_disposition, snd_disposition):
+        '''
+        Generate the settlement display string for this transfer.
+        :param link: linkDetails - holds settlement modes
+        :param transfer: plf of the transfer frame
+        :param rcv_disposition: plf of receiver role disposition
+        :param snd_disposition: plf of sender   role disposition
+        :return: display string
+        '''
+        if not transfer.data.settled is None and transfer.data.settled == "true" :
+            result = "transfer presettled"
+            if not rcv_disposition is None:
+                sys.stderr.write("WARING: Receiver disposition for presettled message. connid:%s, line:%s\n" %
+                                 (rcv_disposition.data.conn_id, rcv_disposition.lineno))
+            if not snd_disposition is None:
+                sys.stderr.write("WARING: Sender disposition for presettled message. connid:%s, line:%s\n" %
+                                 (snd_disposition.data.conn_id, snd_disposition.lineno))
+        else:
+            if "1" in link.snd_settle_mode:
+                # link mode sends only settled transfers
+                result = "link presettled"
+                if not rcv_disposition is None:
+                    sys.stderr.write("WARING: Receiver disposition for presettled link. connid:%s, line:%s\n" %
+                                     (rcv_disposition.data.conn_id, rcv_disposition.lineno))
+                if not snd_disposition is None:
+                    sys.stderr.write("WARING: Sender disposition for presettled link. connid:%s, line:%s\n" %
+                                     (snd_disposition.data.conn_id, snd_disposition.lineno))
+            else:
+                # transfer unsettled and link mode requires settlement
+                if not rcv_disposition is None:
+                    rtext = self.settlement_display(transfer, rcv_disposition)
+                    transfer.data.final_disposition = rcv_disposition
+                if not snd_disposition is None:
+                    stext = self.settlement_display(transfer, snd_disposition)
+                    transfer.data.final_disposition = snd_disposition
+
+                if "0" in link.rcv_settle_mode:
+                    # one settlement expected
+                    if not rcv_disposition is None:
+                        result = rtext
+                        if not snd_disposition is None:
+                            sys.stderr.write("WARING: Sender disposition for single first(0) settlement link. connid:%s, line:%s\n" %
+                                             (snd_disposition.data.conn_id, snd_disposition.lineno))
+                    else:
+                        result = "rcvr: absent"
+                else:
+                    # two settlements expected
+                    if not rcv_disposition is None:
+                        result = "rcvr: " + rtext
+                        if not snd_disposition is None:
+                            result += ", sndr: " + stext
+                        else:
+                            result += ", sndr: absent"
+                    else:
+                        result = "rcvr: absent"
+                        if not snd_disposition is None:
+                            result += ", sndr: " + stext
+                        else:
+                            result += ", sndr: absent"
+        return "(" + result + ")"
 
     def __init__(self, _tree, _globals):
         self.tree = _tree
@@ -329,7 +417,7 @@ class AllDetails():
                     sess_details.amqp_errors += 1
 
                 if pname in ['begin', 'end', 'disposition']:
-                    sess_details.unaccounted_frame_list.append(plf)
+                    sess_details.session_frame_list.append(plf)
 
                 elif pname in ['attach']:
                     handle = plf.data.handle # proton local handle
@@ -376,7 +464,7 @@ class AllDetails():
                     nl = ns.FindLinkByHandle(handle, plf.data.direction_is_in())
                     ns.DetachHandle(handle, plf.data.direction_is_in())
                     if nl is None:
-                        ns.unaccounted_frame_list.append(plf)
+                        ns.session_frame_list.append(plf)
                     else:
                         if plf.data.amqp_error:
                             nl.amqp_errors += 1
@@ -390,12 +478,28 @@ class AllDetails():
                     handle = plf.data.handle
                     nl = ns.FindLinkByHandle(handle, plf.data.direction_is_in())
                     if nl is None:
-                        ns.unaccounted_frame_list.append(plf)
+                        ns.session_frame_list.append(plf)
                     else:
                         if plf.data.amqp_error:
                             nl.amqp_errors += 1
                         nl.frame_list.append(plf)
-
+        # identify and index dispositions
+        for id in self.gbls.all_conn_names:
+            conn_detail = self.gbls.conn_details_map[id]
+            for sess in conn_detail.session_list:
+                # for each disposition add state to disposition_map
+                for splf in sess.session_frame_list:
+                    if splf.data.name == "disposition":
+                        if splf.data.direction == "<-":
+                            sdispmap = sess.rx_rcvr_disposition_map if splf.data.is_receiver else sess.rx_sndr_disposition_map
+                        else:
+                            sdispmap = sess.tx_rcvr_disposition_map if splf.data.is_receiver else sess.tx_sndr_disposition_map
+                        for sdid in range(int(splf.data.first), (int(splf.data.last)+1)):
+                            did = str(sdid)
+                            if did in sdispmap:
+                                sys.stderr.write("ERROR: Delivery ID collision in disposition map. connid:%s, \n" %
+                                                 (splf.data.conn_id))
+                            sdispmap[did] = splf
 
     def show_html(self):
         for id in self.gbls.all_conn_names:
@@ -406,7 +510,7 @@ class AllDetails():
             print("<a href=\"javascript:toggle_node('%s_data')\">%s%s</a>" %
                   (id, self.lozenge(), self.nbsp()))
             dir = self.gbls.conn_dirs[id] if id in self.gbls.conn_dirs else ""
-            peer = self.gbls.conn_peers[id] if id in self.gbls.conn_peers else ""
+            peer = self.gbls.conn_peers.get(id, "")
             # show the connection title
             print("%s %s %s (nFrames=%d) %s<br>" % \
                  (id, dir, peer, len(conn_frames), self.format_errors(conn_detail.amqp_errors)))
@@ -421,7 +525,8 @@ class AllDetails():
             print("Connection-based entries %s<br>" % self.format_errors(errs))
             print("<div id=\"%s_data_unacc\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" % id)
             for plf in conn_detail.unaccounted_frame_list:
-                print(plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
+                commat = "<a href=\"#%s\">@</a>" % plf.fid
+                print(commat, plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
             print("</div>") # end unaccounted frames
 
             # loop to print session details
@@ -434,30 +539,31 @@ class AllDetails():
                  sess.FrameCount(), self.format_errors(sess.amqp_errors)))
                 print("<div id=\"%s_sess_%s\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" %
                       (id, sess.conn_epoch))
-                # show the unaccounted session frames
-                errs = sum(1 for plf in sess.unaccounted_frame_list if plf.data.amqp_error)
+                # show the session-level frames
+                errs = sum(1 for plf in sess.session_frame_list if plf.data.amqp_error)
                 print("<a href=\"javascript:toggle_node('%s_sess_%s_unacc')\">%s%s</a>" %
                       (id, sess.conn_epoch, self.lozenge(), self.nbsp()))
                 print("Session-based entries %s<br>" % self.format_errors(errs))
                 print("<div id=\"%s_sess_%s_unacc\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" %
                       (id, sess.conn_epoch))
-                for plf in sess.unaccounted_frame_list:
-                    print(plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
+                for plf in sess.session_frame_list:
+                    commat = "<a href=\"#%s\">@</a>" % plf.fid
+                    print(commat, plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
                 print("</div>") # end <id>_sess_<conn_epoch>_unacc
                 # loops to print session link details
                 # first loop prints link table
                 print("<table")
-                print("<tr><th>Link</th> <th>Dir</th> <th>Name</th>  <th>Role</th>  <th>Address</th>  <th>Class</th>  "
+                print("<tr><th>Link</th> <th>Dir</th> <th>Role</th>  <th>Address</th>  <th>Class</th>  "
                       "<th>snd-settle-mode</th>  <th>rcv-settle-mode</th>  <th>Start time</th>  <th>Frames</th> "
                       "<th>AMQP errors</tr>")
                 for link in sess.link_list:
                     # show the link toggle and title
-                    showthis = ("<a href=\"javascript:toggle_node('%s_sess_%s_link_%s')\">link %s</a>" %
-                                (id, sess.conn_epoch, link.session_seq, link.session_seq))
+                    showthis = ("<a href=\"javascript:toggle_node('%s_sess_%s_link_%s')\">%s</a>" %
+                                (id, sess.conn_epoch, link.session_seq, link.display_name))
                     role = "receiver" if link.is_receiver else "sender"
-                    print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+                    print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
                           "<td>%s</td><td>%d</td><td>%s</td></tr>" % \
-                          (showthis, link.direction, link.display_name, role, link.first_address,
+                          (showthis, link.direction, role, link.first_address,
                            (link.sender_class + '-' + link.receiver_class), link.snd_settle_mode,
                            link.rcv_settle_mode, link.time_start, link.FrameCount(), self.format_errors(link.amqp_errors)))
                 print("</table>")
@@ -465,11 +571,23 @@ class AllDetails():
                 for link in sess.link_list:
                     print("<div id=\"%s_sess_%s_link_%s\" style=\"display:none; margin-top: 2px; margin-bottom: 2px; margin-left: 10px\">" %
                           (id, sess.conn_epoch, link.session_seq))
-                    print("<h4>Connection %s Session %s Link %s: %s</h4>" %
-                          (id, sess.conn_epoch, link.session_seq, link.display_name))
+                    print("<h4>Connection %s Session %s Link %s</h4>" %
+                          (id, sess.conn_epoch, link.display_name))
                     for plf in link.frame_list:
                         commat = "<a href=\"#%s\">@</a>" % plf.fid
-                        print(commat, plf.datetime, "l:", plf.lineno, plf.data.direction, peer, plf.data.web_show_str, "<br>")
+                        if plf.data.name == "transfer":
+                            tdid = plf.data.delivery_id
+                            if plf.data.direction == "->":
+                                rmap = sess.rx_rcvr_disposition_map
+                                tmap = sess.rx_sndr_disposition_map
+                            else:
+                                rmap = sess.tx_rcvr_disposition_map
+                                tmap = sess.tx_sndr_disposition_map
+                            plf.data.disposition_display = self.resolve_settlement(link, plf,
+                                                                                   rmap.get(tdid),
+                                                                                   tmap.get(tdid))
+                        print(commat, plf.datetime, "l:", plf.lineno, plf.data.direction, peer, plf.data.web_show_str,
+                              plf.data.disposition_display, "<br>")
                     print("</div>") # end link <id>_sess_<conn_epoch>_link_<sess_seq>
 
                 print("</div>") # end session <id>_sess_<conn_epoch>

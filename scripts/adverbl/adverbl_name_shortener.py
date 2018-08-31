@@ -39,12 +39,12 @@ class ShortNames():
         '''
         Translate a long name into a short name, maybe.
         Memorize all names, translated or not
+        Strip leading/trailing double quotes
         :param lname: the name
         :return: If shortened HTML string of shortened name with popup containing long name else
         not-so-long name.
         '''
-        idx = 0
-        if lname.startswith("\""):
+        if lname.startswith("\"") and lname.endswith("\""):
             lname = lname[1:-1]
         try:
             idx = self.longnames.index(lname)
@@ -70,6 +70,15 @@ class ShortNames():
         if len(name) < self.threshold:
             return name
         return self.prefix + "_" + str(idx)
+
+    def sname_to_popup(self, sname):
+        if not sname.startswith(self.prefix):
+            raise ValueError("Short name '%s' does not start with prefix '%s'" % (sname, self.prefix))
+        try:
+            lname = self.longnames[ int(sname[ (len(self.prefix) + 1): ])]
+        except:
+            raise ValueError("Short name '%s' did not translate to a long name" % (sname))
+        return "<span title=\"" + cgi.escape(lname) + sname + "</span>"
 
     def longname(self, idx, cgi_escape=False):
         '''
@@ -101,8 +110,9 @@ class ShortNames():
 class Shorteners():
     def __init__(self):
         self.short_link_names = ShortNames("link", 5)
-        self.short_endp_names = ShortNames("endpoint")
+        self.short_addr_names = ShortNames("address")
         self.short_data_names = ShortNames("transfer")
+        self.short_peer_names = ShortNames("peer")
 
 
 if __name__ == "__main__":

@@ -260,6 +260,7 @@ def main_except(argv):
                 if item.data.conn_id in gbls.conn_peers:
                     sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (arg_log_file, item.data.conn_id))
                 gbls.conn_peers[item.data.conn_id] = item.data.conn_peer
+                gbls.conn_peers_popup[item.data.conn_id] = gbls.shorteners.short_peer_names.translate(item.data.conn_peer, True)
             # per-log-line count
             conn_log_lines[item.data.conn_id] += 1
             # transfer byte count
@@ -355,8 +356,9 @@ def main_except(argv):
     print("<li><a href=\"#c_logdata\">Log data</a></li>")
     print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
     print("<li><a href=\"#c_linkprogress\">Link name propagation</a></li>")
-    print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
+    print("<li><a href=\"#c_peerdump\">Peer name index</a></li>")
     print("<li><a href=\"#c_linkdump\">Link name index</a></li>")
+    print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
     print("</ul>")
 
     # file(s) included in this doc
@@ -380,7 +382,7 @@ def main_except(argv):
     print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
     print("</p>")
 
-    print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Inbound open peer</th> <th>Log lines</th> "
+    print("<table><tr><th>View</th> <th>Id</th> <th>Dir</th> <th>Peer</th> <th>Log lines</th> "
           "<th>N links</th><th>Transfer bytes</th> <th>AMQP errors</th></tr>")
     tConn = 0
     tLines = 0
@@ -392,7 +394,7 @@ def main_except(argv):
         for conn in conn_list:
             tConn += 1
             id = gbls.conn_id_of(gbls.log_letter_of(i), conn)
-            peer = gbls.conn_peers[id] if id in gbls.conn_peers else ""
+            peer = gbls.conn_peers_popup.get(id, "")
             n_links = gbls.all_details.links_in_connection(id)
             tLinks += n_links
             errs = sum(1 for plf in gbls.conn_to_frame_map[id] if plf.data.amqp_error)
@@ -462,9 +464,9 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, lozenge(), nbsp())
-        peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
+        peer = gbls.conn_peers.get(plf.data.conn_id, "")
         print(loz, plf.datetime, "l:", plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, peer,
-              plf.data.web_show_str, "<br>")
+              plf.data.web_show_str, plf.data.disposition_display, "<br>")
         print(" <div width=\"100%%\"; "
               "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
               "id=\"%s\">" %
@@ -495,7 +497,7 @@ def main_except(argv):
         print("</h4>")
         print("<table>")
         print("<tr><th>Link</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> "
-              "<th>T delta</th> <th>T elapsed</th></tr>")
+              "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
         t0 = None
         tlast = None
         for plf in tree:
@@ -509,11 +511,15 @@ def main_except(argv):
                     delta = time_offset(plf.datetime, tlast)
                     epsed = time_offset(plf.datetime, t0)
                     tlast = plf.datetime
-                peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
+                sepsed = ""
+                if not plf.data.final_disposition is None:
+                    sepsed = time_offset(plf.data.final_disposition.datetime, t0)
+                peer = gbls.conn_peers.get(plf.data.conn_id, "")
                 link = "<a href=\"#%s\">@</a>" % plf.fid
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
-                      "<td>%s</td> <td>%s</td></tr>" %
-                      (link, plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
+                      "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
+                      (link, plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed,
+                       plf.data.disposition_display, sepsed))
         print("</table>")
 
     print("<hr>")
@@ -545,7 +551,7 @@ def main_except(argv):
                     delta = time_offset(plf.datetime, tlast)
                     epsed = time_offset(plf.datetime, t0)
                 tlast = plf.datetime
-                peer = gbls.conn_peers[plf.data.conn_id] if plf.data.conn_id in gbls.conn_peers else ""
+                peer = gbls.conn_peers.get(plf.data.conn_id, "")
                 link = "<a href=\"#%s\">src</a>" % plf.fid
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
                       "<td>%s</td> <td>%s</td></tr>" %
@@ -556,11 +562,14 @@ def main_except(argv):
 
 
     # short data index
-    print("<a name=\"c_msgdump\"></a>")
-    gbls.shorteners.short_data_names.htmlDump(True)
+    print("<a name=\"c_peerdump\"></a>")
+    gbls.shorteners.short_peer_names.htmlDump(True)
 
     print("<a name=\"c_linkdump\"></a>")
     gbls.shorteners.short_link_names.htmlDump(True)
+
+    print("<a name=\"c_msgdump\"></a>")
+    gbls.shorteners.short_data_names.htmlDump(True)
 
     # Out-of-order histogram
     # Don't print if all zeros
