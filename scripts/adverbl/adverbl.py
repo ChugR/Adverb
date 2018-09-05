@@ -198,6 +198,23 @@ def parse_log_file(fn, log_id, ooo_tracker, gbls):
                     #raise t, v, tb
     return parsed_lines
 
+
+def show_noteworthy_line(plf, gbls):
+    '''
+    Given a log line, print the noteworthy display line
+    :param plf:
+    :param glbs:
+    :return:
+    '''
+    rid = gbls.router_ids[ ord(plf.prefix) - ord(gbls.log_char_base)]
+    id = "[%s]" % plf.data.conn_id
+    peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
+    peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+    print("%s %s %s %s %s %s %s<br>" %
+          (plf.adverbl_link_to(), rid, id, plf.data.direction, peerconnid, peer,
+           plf.data.web_show_str))
+
+
 #
 #
 def main_except(argv):
@@ -235,7 +252,7 @@ def main_except(argv):
         ooo_array.append(ooo)
         tree = parse_log_file(arg_log_file, log_letter, ooo, gbls)
         if len(tree) == 0:
-            sys.exit('WARNING: log file %s has no Adverb data!' % arg_log_file)
+            sys.exit('WARNING: log file %s has no Adverbl data!' % arg_log_file)
 
         # marshall facts about the run
         gbls.router_ids.append(get_router_id(arg_log_file))
@@ -375,18 +392,20 @@ def main_except(argv):
 
     # Table of contents
     print("<h3>Contents</h3>")
-    print("<ul>")
-    print("<li><a href=\"#c_logfiles\">Log files</a></li>")
-    print("<li><a href=\"#c_connections\">Connections</a></li>")
-
-    print("<li><a href=\"#c_noteworthy\">Noteworthy log lines</a></li>")
-    print("<li><a href=\"#c_logdata\">Log data</a></li>")
-    print("<li><a href=\"#c_messageprogress\">Message progress</a></li>")
-    print("<li><a href=\"#c_linkprogress\">Link name propagation</a></li>")
-    print("<li><a href=\"#c_peerdump\">Peer name index</a></li>")
-    print("<li><a href=\"#c_linkdump\">Link name index</a></li>")
-    print("<li><a href=\"#c_msgdump\">Transfer name index</a></li>")
-    print("</ul>")
+    print("<table>")
+    print("<tr> <th>Section</th> <th>Description</th> </tr>")
+    print("<tr><td><a href=\"#c_logfiles\">Log files</a></td> <td>Router and log file info</td></tr>")
+    print("<tr><td><a href=\"#c_connections\">Connections</a></td> <td>Connection overview; per connection log data view control</td></tr>")
+    print("<tr><td><a href=\"#c_conndetails\">Connection Details</a></td> <td>Connection details; frames sorted by link</td></tr>")
+    print("<tr><td><a href=\"#c_noteworthy\">Noteworthy log lines</a></td> <td>AMQP errors and interesting flags</td></tr>")
+    print("<tr><td><a href=\"#c_logdata\">Log data</a></td> <td>Main AMQP traffic table</td></tr>")
+    print("<tr><td><a href=\"#c_messageprogress\">Message progress</a></td> <td>Tracking messages through the system</td></tr>")
+    print("<tr><td><a href=\"#c_linkprogress\">Link name propagation</a></td> <td>Tracking link names</td></tr>")
+    print("<tr><td><a href=\"#c_peerdump\">Peer name index</a></td> <td>Short vs. long peer names</td></tr>")
+    print("<tr><td><a href=\"#c_linkdump\">Link name index</a></td> <td>Short vs. long link names</td></tr>")
+    print("<tr><td><a href=\"#c_msgdump\">Transfer name index</a></td> <td>Short names representing transfer data</td></tr>")
+    print("</table>")
+    print("<hr>")
 
     # file(s) included in this doc
     print("<a name=\"c_logfiles\"></a>")
@@ -479,9 +498,7 @@ def main_except(argv):
           "id=\"noteworthy_errors\">")
     for plf in tree:
         if plf.data.amqp_error:
-            print("<a href=\"#%s\">line %s</a> %s %s %s %s<br>" %
-                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
-                   gbls.conn_peers_connid.get(plf.data.conn_id, ""), plf.data.web_show_str))
+            show_noteworthy_line(plf, gbls)
     print("</div>")
     # transfers with settled=true
     print("<a href=\"javascript:toggle_node('noteworthy_settled')\">%s%s</a> Presettled transfers: %d<br>" %
@@ -491,9 +508,7 @@ def main_except(argv):
           "id=\"noteworthy_settled\">")
     for plf in tree:
         if plf.data.transfer_settled:
-            print("<a href=\"#%s\">line %s</a> %s %s %s %s<br>" %
-                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
-                   gbls.conn_peers_connid.get(plf.data.conn_id, ""), plf.data.web_show_str))
+            show_noteworthy_line(plf, gbls)
     print("</div>")
     # transfers with more=true
     print("<a href=\"javascript:toggle_node('noteworthy_more')\">%s%s</a> Partial transfers with 'more' set: %d<br>" %
@@ -503,9 +518,7 @@ def main_except(argv):
           "id=\"noteworthy_more\">")
     for plf in tree:
         if plf.data.transfer_more:
-            print("<a href=\"#%s\">line %s</a> %s %s %s %s<br>" %
-                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
-                   gbls.conn_peers_connid.get(plf.data.conn_id, ""), plf.data.web_show_str))
+            show_noteworthy_line(plf, gbls)
     print("</div>")
     # transfers with resume=true, whatever that is
     print("<a href=\"javascript:toggle_node('noteworthy_resume')\">%s%s</a> Resumed transfers: %d<br>" %
@@ -515,9 +528,7 @@ def main_except(argv):
           "id=\"noteworthy_resume\">")
     for plf in tree:
         if plf.data.transfer_resume:
-            print("<a href=\"#%s\">line %s</a> %s %s %s %s<br>" %
-                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
-                   gbls.conn_peers_connid.get(plf.data.conn_id, ""), plf.data.web_show_str))
+            show_noteworthy_line(plf, gbls)
     print("</div>")
     # transfers with abort=true
     print("<a href=\"javascript:toggle_node('noteworthy_aborts')\">%s%s</a> Aborted transfers: %d<br>" %
@@ -527,9 +538,7 @@ def main_except(argv):
           "id=\"noteworthy_aborts\">")
     for plf in tree:
         if plf.data.transfer_aborted:
-            print("<a href=\"#%s\">line %s</a> %s %s %s %s<br>" %
-                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
-                   gbls.conn_peers_connid.get(plf.data.conn_id, ""), plf.data.web_show_str))
+            show_noteworthy_line(plf, gbls)
     print("</div>")
     # flow with drain=true
     print("<a href=\"javascript:toggle_node('noteworthy_drain')\">%s%s</a> Flow with 'drain' set: %d<br>" %
@@ -539,9 +548,7 @@ def main_except(argv):
           "id=\"noteworthy_drain\">")
     for plf in tree:
         if plf.data.flow_drain:
-            print("<a href=\"#%s\">line %s</a> %s %s %s %s<br>" %
-                  (plf.fid, plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction,
-                   gbls.conn_peers_connid.get(plf.data.conn_id, ""), plf.data.web_show_str))
+            show_noteworthy_line(plf, gbls)
     print("</div>")
     print("<hr>")
 
@@ -556,8 +563,11 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, lozenge(), nbsp())
-        peer = gbls.conn_peers.get(plf.data.conn_id, "")
-        print(loz, plf.datetime, "l:", plf.lineno, ("[%s]" % plf.data.conn_id), plf.data.direction, peer,
+        rid = gbls.router_ids[ord(plf.prefix) - ord(gbls.log_char_base)]
+        peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
+        peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+        print(loz, plf.datetime, ("%s#%d" % (plf.prefix, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
+              plf.data.direction, peerconnid, peer,
               plf.data.web_show_str, plf.data.disposition_display, "<br>")
         print(" <div width=\"100%%\"; "
               "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
@@ -588,7 +598,7 @@ def main_except(argv):
         print("</div> </span>")
         print("</h4>")
         print("<table>")
-        print("<tr><th>Src</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> "
+        print("<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId></th> <th>Peer</th> "
               "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
         t0 = None
         tlast = None
@@ -606,10 +616,13 @@ def main_except(argv):
                 sepsed = ""
                 if not plf.data.final_disposition is None:
                     sepsed = time_offset(plf.data.final_disposition.datetime, t0)
-                peer = gbls.conn_peers.get(plf.data.conn_id, "")
+                rid = gbls.router_ids[ord(plf.prefix) - ord(gbls.log_char_base)]
+                peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
+                peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
-                      "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
-                      (plf.adverbl_link_to(), plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed,
+                      "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
+                      (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction,
+                       peerconnid, peer, delta, epsed,
                        plf.data.disposition_display, sepsed))
         print("</table>")
 
@@ -628,7 +641,7 @@ def main_except(argv):
         print("</div> </span>")
         print("</h4>")
         print("<table>")
-        print("<tr><th>src</th> <th>Time</th> <th>Log Line</th> <th>ConnId</th> <th>Dir</th> <th>Peer</th> "
+        print("<tr><th>src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId> <th>Peer</th> "
               "<th>T delta</th> <th>T elapsed</th></tr>")
         t0 = None
         tlast = None
@@ -642,10 +655,12 @@ def main_except(argv):
                     delta = time_offset(plf.datetime, tlast)
                     epsed = time_offset(plf.datetime, t0)
                 tlast = plf.datetime
-                peer = gbls.conn_peers.get(plf.data.conn_id, "")
+                rid = gbls.router_ids[ord(plf.prefix) - ord(gbls.log_char_base)]
+                peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
+                peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
-                      "<td>%s</td> <td>%s</td></tr>" %
-                      (plf.adverbl_link_to(), plf.datetime, plf.lineno, plf.data.conn_id, plf.data.direction, peer, delta, epsed))
+                      "<td>%s</td> <td>%s</td> <td>%s</td></tr>" %
+                      (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction, peerconnid, peer, delta, epsed))
         print("</table>")
 
     print("<hr>")

@@ -57,7 +57,7 @@ class LogLineData():
         self.conn_id = "" # decorated routerPrefix-conn_num
         self.conn_peer = "" # display name of peer in seen in Open 'A - routerId.Test'
         self.channel = ""  # undecorated number - '0'
-        self.direction = "" # '<-' IN, or '->' OUT
+        self.direction = "" # '<-' IN, or '->' OUT, or '--'
         self.described_type = DescribedType() # DescribedType object
         self.handle = ""  # undecorated number - '1'
         self.delivery_id = ""  # "0"
