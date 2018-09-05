@@ -68,6 +68,7 @@ class LogLineData():
         self.flow_deliverycnt = ""  # undecorated number - '50'
         self.flow_linkcredit = ""  # undecorated number - '100'
         self.flow_cnt_credit = ""  # decorated - '(50,100)'
+        self.flow_drain = False
         self.transfer_id = ""
         self.role = ""
         self.is_receiver = False
@@ -82,6 +83,9 @@ class LogLineData():
         self.transfer_data = ""  # protonized transfer data value
         self.transfer_size = ""  # size declared by number in parenthesis
         self.transfer_short_name = ""
+        self.transfer_settled = False
+        self.transfer_more = False
+        self.transfer_resume = False
         self.transfer_aborted = False
         self.link_short_name = ""
         self.link_short_name_popup = ""
@@ -359,6 +363,12 @@ class ParsedLogLine(object):
     def resdict_value(self, resdict, key, if_absent):
         return resdict[key] if key in resdict else if_absent
 
+    def highlighted(self, name, value, color):
+        result = ""
+        if value:
+            result = "<span style=\"background-color:%s\">%s</span>" % (color, name)
+        return result
+
     def extract_facts(self):
         perf = self.data.described_type.dtype_number
         res = self.data
@@ -433,28 +443,34 @@ class ParsedLogLine(object):
             res.handle = resdict["handle"]
             res.flow_deliverycnt = self.resdict_value(resdict, "delivery-count", "0")
             res.flow_linkcredit = self.resdict_value(resdict, "link-credit", "0")
+            res.flow_drain = resdict.get("drain", "") == "true"
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
             res.flow_cnt_credit = "(%s,%s)" % (res.flow_deliverycnt, res.flow_linkcredit)
-            res.web_show_str = "<strong>%s</strong> %s (%s,%s)" % (
-                res.name, colorize_bg(res.channel_handle), res.flow_deliverycnt, res.flow_linkcredit)
+            res.web_show_str = "<strong>%s</strong> %s (%s,%s) %s" % (
+                res.name, colorize_bg(res.channel_handle), res.flow_deliverycnt, res.flow_linkcredit,
+                self.highlighted("drain", res.flow_drain, "yellow"))
 
         elif perf == 0x14:
             # Performative: transfer [channel,handle] (id)
             res.name = "transfer"
             res.handle = resdict["handle"]
+            res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
             res.delivery_id = self.resdict_value(resdict, "delivery-id", "none")
             res.delivery_tag = self.resdict_value(resdict, "delivery-tag", "none")
             res.settled = self.resdict_value(resdict, "settled", "false")
-            v_aborted = self.resdict_value(resdict, "aborted", None)
-            res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
-            aborted = ""
-            if not v_aborted is None and v_aborted == 'true':
-                res.transfer_aborted = True
-                aborted = " <span style=\"background-color:yellow\">aborted</span>"
+            res.transfer_settled = resdict.get("settled", "") == "true"
+            res.transfer_more = resdict.get("more", "") == "true"
+            res.transfer_resume = resdict.get("resume", "") == "true"
+            res.transfer_aborted = resdict.get("aborted", "") == "true"
             self.transfer_short_name = self.shorteners.short_data_names.translate(res.transfer_data)
             showdat = "<a href=\"#%s\">%s</a>" % (self.transfer_short_name, self.transfer_short_name)
-            res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s - %s bytes" % (
-                res.name, colorize_bg(res.channel_handle), res.delivery_id, aborted, showdat, res.transfer_size)
+            res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s %s %s %s - %s bytes" % (
+                res.name, colorize_bg(res.channel_handle), res.delivery_id,
+                self.highlighted("settled", res.transfer_settled, "green"),
+                self.highlighted("more", res.transfer_more, "purple"),
+                self.highlighted("resume", res.transfer_resume, "orange"),
+                self.highlighted("aborted", res.transfer_aborted, "yellow"),
+                showdat, res.transfer_size)
 
         elif perf == 0x15:
             # Performative: disposition [channel] (role first-last)
@@ -658,6 +674,12 @@ class ParsedLogLine(object):
             res.amqp_error = True
             res.web_show_str += (" <span style=\"background-color:yellow\">error</span> "
                         "%s %s" % (resdict["error"].dict["condition"], resdict["error"].dict["description"]))
+
+    def adverbl_link_to(self):
+        '''
+        :return: html link to the main adverbl data display for this line
+        '''
+        return "<a href=\"#%s\">%s</a>" % (self.fid, "%s_%s" % (self.prefix, str(self.lineno)))
 
     def __init__(self, _prefix, _lineno, _line, _gbls):
         '''

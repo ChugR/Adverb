@@ -139,7 +139,11 @@ class SessionDetail():
         self.output_handle_link_map = {}  # link created locally
 
         # Link name in attach finds link details in link_list
+        # This map contains the link handle to disambiguate the name
         self.link_name_to_detail_map = {}
+        #
+        # The map contains the pure link name and is used only to resolve name collisions
+        self.link_name_conflict_map = {}
 
         # count of AMQP performatives for this connection that are not accounted
         # properly in link processing
@@ -159,12 +163,24 @@ class SessionDetail():
         count += len(self.session_frame_list)
         return count
 
-    def FindLinkByName(self, attach_name):
+    def FindLinkByName(self, attach_name, link_name_unambiguous, parsed_log_line):
+        # find conflicted name
+        cnl = None
+        if attach_name in self.link_name_conflict_map:
+            cnl = self.link_name_conflict_map[attach_name]
+            if cnl.input_handle == -1 and cnl.output_handle == -1:
+                cnl = None
+        # find non-conflicted name
         nl = None
-        if attach_name in self.link_name_to_detail_map:
-            nl = self.link_name_to_detail_map[attach_name]
+        if link_name_unambiguous in self.link_name_to_detail_map:
+            nl = self.link_name_to_detail_map[link_name_unambiguous]
             if nl.input_handle == -1 and nl.output_handle == -1:
                 nl = None
+        # report conflict
+        if nl is None and (not cnl is None):
+            parsed_log_line.data.amqp_error = True
+            parsed_log_line.data.web_show_str += " <span style=\"background-color:yellow\">Link name conflict</span>"
+        # return unambiguous link
         return nl
 
     def FindLinkByHandle(self, handle, find_remote):
@@ -226,7 +242,7 @@ class LinkDetail():
         self.session_seq = session_seq
 
         # link name
-        self.name = link_name
+        self.name = link_name         # plf.data.link_short_name
         self.display_name = link_name # show short name; hover to see long name
 
         # Timing
@@ -386,7 +402,7 @@ class AllDetails():
                             result += ", sndr: " + stext
                         else:
                             result += ", sndr: absent"
-        return "(" + result + ")"
+        return result
 
     def __init__(self, _tree, _globals):
         self.tree = _tree
@@ -422,12 +438,19 @@ class AllDetails():
                 elif pname in ['attach']:
                     handle = plf.data.handle # proton local handle
                     link_name = plf.data.link_short_name
-                    nl = sess_details.FindLinkByName(link_name)
+                    link_name_unambiguous = link_name + "_" + str(handle)
+                    error_was = plf.data.amqp_error
+                    nl = sess_details.FindLinkByName(link_name, link_name_unambiguous, plf)
+                    # if finding an ambiguous link name generated an error then propagate to session/connection
+                    if not error_was and plf.data.amqp_error:
+                        conn_details.amqp_errors += 1
+                        sess_details.amqp_errors += 1
                     if nl is None:
                         # Creating a new link from scratch resulting in a half attached link pair
                         nl = LinkDetail(sess_details, sess_details.GetSeqNo(), link_name, plf.datetime)
                         sess_details.link_list.append(nl)
-                        sess_details.link_name_to_detail_map[link_name] = nl
+                        sess_details.link_name_to_detail_map[link_name_unambiguous] = nl
+                        sess_details.link_name_conflict_map[link_name] = nl
                         nl.display_name = plf.data.link_short_name_popup
                         nl.direction = plf.data.direction
                         nl.is_receiver = plf.data.role == "receiver"
@@ -510,10 +533,11 @@ class AllDetails():
             print("<a href=\"javascript:toggle_node('%s_data')\">%s%s</a>" %
                   (id, self.lozenge(), self.nbsp()))
             dir = self.gbls.conn_dirs[id] if id in self.gbls.conn_dirs else ""
-            peer = self.gbls.conn_peers.get(id, "")
+            peer = self.gbls.conn_peers_popup.get(id, "")
+            peerconnid = self.gbls.conn_peers_connid.get(id, "")
             # show the connection title
-            print("%s %s %s (nFrames=%d) %s<br>" % \
-                 (id, dir, peer, len(conn_frames), self.format_errors(conn_detail.amqp_errors)))
+            print("%s %s %s %s (nFrames=%d) %s<br>" % \
+                 (id, dir, peerconnid, peer, len(conn_frames), self.format_errors(conn_detail.amqp_errors)))
             # data div
             print("<div id=\"%s_data\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" % id)
 
@@ -525,8 +549,7 @@ class AllDetails():
             print("Connection-based entries %s<br>" % self.format_errors(errs))
             print("<div id=\"%s_data_unacc\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" % id)
             for plf in conn_detail.unaccounted_frame_list:
-                commat = "<a href=\"#%s\">@</a>" % plf.fid
-                print(commat, plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
+                print(plf.adverbl_link_to(), plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
             print("</div>") # end unaccounted frames
 
             # loop to print session details
@@ -547,8 +570,7 @@ class AllDetails():
                 print("<div id=\"%s_sess_%s_unacc\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" %
                       (id, sess.conn_epoch))
                 for plf in sess.session_frame_list:
-                    commat = "<a href=\"#%s\">@</a>" % plf.fid
-                    print(commat, plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
+                    print(plf.adverbl_link_to(), plf.datetime, plf.data.direction, peer, plf.data.web_show_str, "<br>")
                 print("</div>") # end <id>_sess_<conn_epoch>_unacc
                 # loops to print session link details
                 # first loop prints link table
@@ -574,7 +596,6 @@ class AllDetails():
                     print("<h4>Connection %s Session %s Link %s</h4>" %
                           (id, sess.conn_epoch, link.display_name))
                     for plf in link.frame_list:
-                        commat = "<a href=\"#%s\">@</a>" % plf.fid
                         if plf.data.name == "transfer":
                             tdid = plf.data.delivery_id
                             if plf.data.direction == "->":
@@ -586,7 +607,7 @@ class AllDetails():
                             plf.data.disposition_display = self.resolve_settlement(link, plf,
                                                                                    rmap.get(tdid),
                                                                                    tmap.get(tdid))
-                        print(commat, plf.datetime, "l:", plf.lineno, plf.data.direction, peer, plf.data.web_show_str,
+                        print(plf.adverbl_link_to(), plf.datetime, plf.data.direction, peer, plf.data.web_show_str,
                               plf.data.disposition_display, "<br>")
                     print("</div>") # end link <id>_sess_<conn_epoch>_link_<sess_seq>
 

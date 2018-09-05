@@ -109,10 +109,11 @@ class ShortNames():
 
 class Shorteners():
     def __init__(self):
-        self.short_link_names = ShortNames("link", 5)
+        self.short_link_names = ShortNames("link", 15)
         self.short_addr_names = ShortNames("address")
         self.short_data_names = ShortNames("transfer")
         self.short_peer_names = ShortNames("peer")
+        self.short_rtr_names  = ShortNames("router")
 
 
 if __name__ == "__main__":

@@ -50,6 +50,7 @@ class adverbl_globals:
     # key=decorated name 'A_3'
     conn_peers = {}         # val = peer container-id
     conn_peers_popup = {}   # val = peer display name with popup
+    conn_peers_connid = {}  # val = peer connection id
     conn_dirs = {}          # val = direction arrow
 
     # ordered list of connection names across all routers
