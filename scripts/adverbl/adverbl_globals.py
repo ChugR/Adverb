@@ -38,7 +38,10 @@ class adverbl_globals:
 
     # discovered router container names
     # len=n_logs
-    router_ids = []
+    router_ids = [] # raw long names
+    router_display_names = []
+    router_ids_by_prefix = {}
+    router_display_by_prefix = {}
 
     # list of list of connections as discovered in files
     # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]

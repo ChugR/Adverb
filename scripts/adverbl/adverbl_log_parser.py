@@ -716,6 +716,7 @@ class ParsedLogLine(object):
         self.oline = _line        # original line
         self.prefix = _prefix     # router prefix
         self.lineno = _lineno     # log line number
+        self.gbls   = _gbls
         self.fid = "f_" + self.prefix + "_" + str(self.lineno) # frame id
         self.shorteners = _gbls.shorteners # name shorteners
 

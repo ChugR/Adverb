@@ -127,7 +127,7 @@ function go_back()
 '''
 
 
-def get_some_field(fn, fld_prefix):
+def get_some_field(fn, fld_prefix, uniq):
     '''
     Extract some string from a log file using simple text search.
     A typical call is:
@@ -135,7 +135,8 @@ def get_some_field(fn, fld_prefix):
     This finds the version field without all the formal parsing complications
     :param fn: the path to the log file
     :param fnd_prefix: text before the intended field
-    :return: field text or 'unknown'
+    :param uniq: unique-ifier in event field is not found
+    :return: field text or 'unknown'+uniq
     '''
     with open(fn, 'r') as infile:
         for line in infile:
@@ -143,7 +144,7 @@ def get_some_field(fn, fld_prefix):
             if st > 0:
                 res = line[(st + len(fld_prefix)):].strip().split()[0]
                 return res
-    return "unknown"
+    return "unknown_" + uniq
 
 
 def time_offset(ttest, t0):
@@ -159,12 +160,12 @@ def time_offset(ttest, t0):
     return "%0.06f" % t
 
 
-def get_router_version(fn):
-    return get_some_field(fn, "ROUTER (info) Version:")
+def get_router_version(fn, uniq):
+    return get_some_field(fn, "ROUTER (info) Version:", uniq)
 
 
-def get_router_id(fn):
-    return get_some_field(fn, "SERVER (info) Container Name:")
+def get_router_id(fn, uniq):
+    return get_some_field(fn, "SERVER (info) Container Name:", uniq)
 
 
 def parse_log_file(fn, log_id, ooo_tracker, gbls):
@@ -212,7 +213,7 @@ def show_noteworthy_line(plf, gbls):
     :param glbs:
     :return:
     '''
-    rid = gbls.router_ids[ ord(plf.prefix) - ord(gbls.log_char_base)]
+    rid = gbls.router_display_by_prefix[plf.prefix]
     id = "[%s]" % plf.data.conn_id
     peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
     peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
@@ -261,7 +262,7 @@ def main_except(argv):
             sys.exit('WARNING: log file %s has no Adverbl data!' % arg_log_file)
 
         # marshall facts about the run
-        gbls.router_ids.append(get_router_id(arg_log_file))
+        gbls.router_ids.append(get_router_id(arg_log_file, log_letter))
         conns = []
         for item in tree:
             # first-instance handling
@@ -298,6 +299,15 @@ def main_except(argv):
 
     # sort the link state list
     ls_tree = sorted(gbls.router_ls, key=lambda lfl: lfl.datetime)
+
+    # generate the router name display helper lists
+    for i in range(gbls.n_logs):
+        log_letter = gbls.log_letter_of(i)
+        id = gbls.router_ids[i]
+        dispname = gbls.shorteners.short_rtr_names.translate( id, show_popup=True )
+        gbls.router_display_names.append( dispname )
+        gbls.router_ids_by_prefix[log_letter] = id
+        gbls.router_display_by_prefix[log_letter] = dispname
 
     # populate a list with all connectionIds
     # populate a map with key=connectionId, val=[list of associated frames])
@@ -410,6 +420,7 @@ def main_except(argv):
     print("<tr><td><a href=\"#c_logdata\">Log data</a></td> <td>Main AMQP traffic table</td></tr>")
     print("<tr><td><a href=\"#c_messageprogress\">Message progress</a></td> <td>Tracking messages through the system</td></tr>")
     print("<tr><td><a href=\"#c_linkprogress\">Link name propagation</a></td> <td>Tracking link names</td></tr>")
+    print("<tr><td><a href=\"#c_rtrdump\">Router name index</a></td> <td>Short vs. long router container names</td></tr>")
     print("<tr><td><a href=\"#c_peerdump\">Peer name index</a></td> <td>Short vs. long peer names</td></tr>")
     print("<tr><td><a href=\"#c_linkdump\">Link name index</a></td> <td>Short vs. long link names</td></tr>")
     print("<tr><td><a href=\"#c_msgdump\">Transfer name index</a></td> <td>Short names representing transfer data</td></tr>")
@@ -423,7 +434,7 @@ def main_except(argv):
     print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Log file path</th></tr>")
     for i in range(gbls.n_logs):
         print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-              (gbls.log_letter_of(i), gbls.router_ids[i], get_router_version(gbls.log_fns[i]),
+              (gbls.log_letter_of(i), gbls.router_ids[i], get_router_version(gbls.log_fns[i], gbls.log_letter_of(i)),
                os.path.abspath(gbls.log_fns[i])))
     print("</table>")
     print("<hr>")
@@ -573,7 +584,7 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, lozenge(), nbsp())
-        rid = gbls.router_ids[ord(plf.prefix) - ord(gbls.log_char_base)]
+        rid = gbls.router_display_by_prefix[plf.prefix]
         peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
         peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
         print(loz, plf.datetime, ("%s#%d" % (plf.prefix, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
@@ -626,7 +637,7 @@ def main_except(argv):
                 sepsed = ""
                 if not plf.data.final_disposition is None:
                     sepsed = time_offset(plf.data.final_disposition.datetime, t0)
-                rid = gbls.router_ids[ord(plf.prefix) - ord(gbls.log_char_base)]
+                rid = gbls.router_display_by_prefix[plf.prefix]
                 peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
                 peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
@@ -665,7 +676,7 @@ def main_except(argv):
                     delta = time_offset(plf.datetime, tlast)
                     epsed = time_offset(plf.datetime, t0)
                 tlast = plf.datetime
-                rid = gbls.router_ids[ord(plf.prefix) - ord(gbls.log_char_base)]
+                rid = gbls.router_display_by_prefix[plf.prefix]
                 peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
                 peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
@@ -677,14 +688,21 @@ def main_except(argv):
 
 
     # short data index
+    print("<a name=\"c_rtrdump\"></a>")
+    gbls.shorteners.short_rtr_names.htmlDump(False)
+    print("<hr>")
+
     print("<a name=\"c_peerdump\"></a>")
-    gbls.shorteners.short_peer_names.htmlDump(True)
+    gbls.shorteners.short_peer_names.htmlDump(False)
+    print("<hr>")
 
     print("<a name=\"c_linkdump\"></a>")
     gbls.shorteners.short_link_names.htmlDump(True)
+    print("<hr>")
 
     print("<a name=\"c_msgdump\"></a>")
     gbls.shorteners.short_data_names.htmlDump(True)
+    print("<hr>")
 
     # link state info
     print("<a name=\"c_ls\"></a>")
@@ -697,6 +715,7 @@ def main_except(argv):
     print("</tr>")
     for plf in ls_tree:
         if "costs" in plf.line:
+            # Processing: Computed costs: {u'A': 1, u'C': 51L, u'B': 101L}
             print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" %(plf.prefix, plf.lineno))))
             try:
                 line = plf.line
@@ -711,6 +730,7 @@ def main_except(argv):
             print("</tr>")
     print ("</table>")
     print("<hr>")
+
     # Out-of-order histogram
     # Don't print if all zeros
     printooo = False
