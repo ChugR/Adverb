@@ -37,6 +37,7 @@ import os
 import sys
 import traceback
 import cgi
+import ast
 
 from adverbl_log_parser import *
 from adverbl_ooo import *
@@ -182,7 +183,12 @@ def parse_log_file(fn, log_id, ooo_tracker, gbls):
             if lineno == 162:
                 pass # break
             ooo_tracker.process_line(lineno, line)
-            if "[" in line and "]" in line:
+            if "ROUTER_LS (info)" in line:
+                pl = ParsedLogLine(log_id, lineno, line, gbls)
+                if pl is not None:
+                    if pl.data.is_router_ls:
+                        gbls.router_ls.append(pl)
+            elif "[" in line and "]" in line:
                 try:
                     pl = ParsedLogLine(log_id, lineno, line, gbls)
                     if pl is not None:
@@ -289,6 +295,9 @@ def main_except(argv):
 
     # sort the combined log entries based on the log line timestamps
     tree = sorted(log_array, key=lambda lfl: lfl.datetime)
+
+    # sort the link state list
+    ls_tree = sorted(gbls.router_ls, key=lambda lfl: lfl.datetime)
 
     # populate a list with all connectionIds
     # populate a map with key=connectionId, val=[list of associated frames])
@@ -404,6 +413,7 @@ def main_except(argv):
     print("<tr><td><a href=\"#c_peerdump\">Peer name index</a></td> <td>Short vs. long peer names</td></tr>")
     print("<tr><td><a href=\"#c_linkdump\">Link name index</a></td> <td>Short vs. long link names</td></tr>")
     print("<tr><td><a href=\"#c_msgdump\">Transfer name index</a></td> <td>Short names representing transfer data</td></tr>")
+    print("<tr><td><a href=\"#c_ls\">Router link state</a></td> <td>Link state analysis</td></tr>")
     print("</table>")
     print("<hr>")
 
@@ -676,6 +686,31 @@ def main_except(argv):
     print("<a name=\"c_msgdump\"></a>")
     gbls.shorteners.short_data_names.htmlDump(True)
 
+    # link state info
+    print("<a name=\"c_ls\"></a>")
+    print("<h3>Routing link state</h3>")
+    print("<h4>Link state costs</h4>")
+    print("<table>")
+    print("<tr><th>Time</th> <th>Router</th>")
+    for i in range(0, gbls.n_logs):
+        print("<th>%s</th>" % gbls.router_ids[i])
+    print("</tr>")
+    for plf in ls_tree:
+        if "costs" in plf.line:
+            print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" %(plf.prefix, plf.lineno))))
+            try:
+                line = plf.line
+                sti = line.find("{")
+                line = line[sti:]
+                dict = ast.literal_eval(line)
+                for i in range(0, gbls.n_logs):
+                    val = dict[gbls.router_ids[i]] if gbls.router_ids[i] in dict else nbsp()
+                    print("<td>%s</td>" % val)
+            except:
+                pass
+            print("</tr>")
+    print ("</table>")
+    print("<hr>")
     # Out-of-order histogram
     # Don't print if all zeros
     printooo = False

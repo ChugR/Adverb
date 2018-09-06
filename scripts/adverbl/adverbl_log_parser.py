@@ -91,6 +91,7 @@ class LogLineData():
         self.link_short_name_popup = ""
         self.is_policy_trace = False # line is POLICY (trace)
         self.is_server_info = False # line is SERVER (info)
+        self.is_router_ls = False # line is ROUTER_LS (info)
         self.fid = "" # Log line (frame) id as used in javascript code
         self.amqp_error = False
         self.link_class = "normal" # attach sees: normal, router, router-data (, management?)
@@ -339,6 +340,7 @@ class ParsedLogLine(object):
     server_trace_key = "SERVER (trace) ["
     server_info_key  = "SERVER (info) ["
     policy_trace_key = "POLICY (trace) ["
+    router_ls_key    = "ROUTER_LS (info)"
     transfer_key = "@transfer(20)"
 
     def sender_settle_mode_of(self, value):
@@ -708,7 +710,8 @@ class ParsedLogLine(object):
         '''
         if not (ParsedLogLine.server_trace_key in _line or
                 (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line) or # open (not begin, attach)
-                ParsedLogLine.server_info_key in _line):
+                ParsedLogLine.server_info_key in _line or
+                ParsedLogLine.router_ls_key in _line):
             raise ValueError("Line is not a candidate for parsing")
         self.oline = _line        # original line
         self.prefix = _prefix     # router prefix
@@ -752,7 +755,14 @@ class ParsedLogLine(object):
             if sti < 0:
                 sti = self.line.find(self.server_info_key)
                 if sti < 0:
-                    raise ValueError("Log keyword/level not found in line %s" % (self.line))
+                    sti = self.line.find(self.router_ls_key)
+                    if sti < 0:
+                        raise ValueError("Log keyword/level not found in line %s" % (self.line))
+                    else:
+                        self.line = self.line[sti + len(self.router_ls_key):]
+                        self.data.is_router_ls = True
+                        # this has no relationship to AMQP log lines
+                        return
                 else:
                     self.line = self.line[sti + len(self.server_info_key):]
                     self.data.is_server_info = True

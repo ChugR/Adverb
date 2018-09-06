@@ -66,6 +66,9 @@ class adverbl_globals:
 
     all_details = None
 
+    # router_ls lines
+    router_ls = []
+
     def log_letter_of(self, idx):
         '''
         Return the letter A, B, C, ... from the index 0..n
