@@ -597,6 +597,8 @@ def main_except(argv):
         for key in sorted(dict.iterkeys()):
             val = dict[key]
             print("%s : %s <br>" % (key, cgi.escape( str(val) )))
+        if plf.data.name == "transfer":
+            print("Header and annotations : %s <br>" % plf.data.transfer_hdr_annos)
         print("</div>")
         print("</div>")
     print("<hr>")

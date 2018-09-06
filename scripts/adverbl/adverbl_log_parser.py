@@ -81,6 +81,8 @@ class LogLineData():
         self.snd_settle_mode = ""  # Attach
         self.rcv_settle_mode = ""  # Attach
         self.transfer_data = ""  # protonized transfer data value
+        self.transfer_bare = ""  # bare message from transfer_data
+        self.transfer_hdr_annos = "" # header and annotation sections
         self.transfer_size = ""  # size declared by number in parenthesis
         self.transfer_short_name = ""
         self.transfer_settled = False
@@ -464,7 +466,7 @@ class ParsedLogLine(object):
             res.transfer_more = resdict.get("more", "") == "true"
             res.transfer_resume = resdict.get("resume", "") == "true"
             res.transfer_aborted = resdict.get("aborted", "") == "true"
-            self.transfer_short_name = self.shorteners.short_data_names.translate(res.transfer_data)
+            self.transfer_short_name = self.shorteners.short_data_names.translate(res.transfer_bare)
             showdat = "<a href=\"#%s\">%s</a>" % (self.transfer_short_name, self.transfer_short_name)
             res.web_show_str = "<strong>%s</strong>  %s (%s) %s %s %s %s %s - %s bytes" % (
                 res.name, colorize_bg(res.channel_handle), res.delivery_id,
@@ -824,6 +826,13 @@ class ParsedLogLine(object):
                 self.data.transfer_size = self.line[ splitSt + 3 : splitTo - 3 ]
                 self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
                 self.line = self.line[ : splitSt + 1 ]
+                # try to isolate the bare message
+                sti = self.data.transfer_data.find(r"\x00Ss")
+                if sti > 0:
+                    self.data.transfer_hdr_annos = self.data.transfer_data[:sti]
+                    self.data.transfer_bare = self.data.transfer_data[sti:]
+                else:
+                    raise ValueError("Transfer with no properties. Not really an error but just checking...")
             else:
                 self.data.transfer_size = "0"
                 self.data.transfer_data = "(none)"
