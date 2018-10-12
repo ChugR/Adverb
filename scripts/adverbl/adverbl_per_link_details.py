@@ -177,9 +177,10 @@ class SessionDetail():
             if nl.input_handle == -1 and nl.output_handle == -1:
                 nl = None
         # report conflict
-        if nl is None and (not cnl is None):
-            parsed_log_line.data.amqp_error = True
-            parsed_log_line.data.web_show_str += " <span style=\"background-color:yellow\">Link name conflict</span>"
+        # TODO: There's an issue with this logic generating false positives
+        # if nl is None and (not cnl is None):
+        #     parsed_log_line.data.amqp_error = True
+        #     parsed_log_line.data.web_show_str += " <span style=\"background-color:yellow\">Link name conflict</span>"
         # return unambiguous link
         return nl
 

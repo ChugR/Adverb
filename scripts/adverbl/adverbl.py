@@ -308,6 +308,7 @@ def main_except(argv):
         gbls.router_display_names.append( dispname )
         gbls.router_ids_by_prefix[log_letter] = id
         gbls.router_display_by_prefix[log_letter] = dispname
+        gbls.router_prefix_by_id[id] = log_letter
 
     # populate a list with all connectionIds
     # populate a map with key=connectionId, val=[list of associated frames])
@@ -324,23 +325,45 @@ def main_except(argv):
 
     # generate router-to-router connection peer relationships
     peer_list = []
-    if gbls.shorteners.short_link_names.len() > 0:
-        for i in range(0, gbls.shorteners.short_link_names.len()):
-            # Strategy 1 before Open holds connid field:
-            # search for short names of links where the link name
-            # is passed back and forth between routers
-            sname = gbls.shorteners.short_link_names.shortname(i)
-            cand = []
-            for plf in tree:
-                if plf.data.name == "attach" and plf.data.link_short_name == sname:
-                    peer = gbls.conn_peers.get(plf.data.conn_id, "")
-                    if len(peer) > 0:
-                        cand.append(plf.data.conn_id)
-            if len(cand) == 4:
-                if (cand[0] == cand[3] and cand[1] == cand[2]) and (not cand[0] == cand[1]):
-                    hit = sorted((cand[0], cand[1]))
-                    if not hit in peer_list:
-                        peer_list.append( hit )
+    STRATEGY_1 = False
+    STRATEGY_2 = True
+
+    # Strategy 1 before Open holds connid field:
+    # search for short names of links where the link name
+    # is passed back and forth between routers
+    if STRATEGY_1:
+        if gbls.shorteners.short_link_names.len() > 0:
+            for i in range(0, gbls.shorteners.short_link_names.len()):
+                sname = gbls.shorteners.short_link_names.shortname(i)
+                cand = []
+                for plf in tree:
+                    if plf.data.name == "attach" and plf.data.link_short_name == sname:
+                        peer = gbls.conn_peers.get(plf.data.conn_id, "")
+                        if len(peer) > 0:
+                            cand.append(plf.data.conn_id)
+                if len(cand) == 4:
+                    if (cand[0] == cand[3] and cand[1] == cand[2]) and (not cand[0] == cand[1]):
+                        hit = sorted((cand[0], cand[1]))
+                        if not hit in peer_list:
+                            peer_list.append( hit )
+
+    # Strategy 2 is to find conn-id in Open frames:
+    if STRATEGY_2:
+        for plf in tree:
+            if plf.data.name == "open" and plf.data.direction_is_in():
+                cid = plf.data.conn_id     # the router that generated this log file
+                if "properties" in plf.data.described_type.dict:
+                    peer_conn = plf.data.described_type.dict["properties"].get(':"qd.conn-id"', "") # router that sent the open
+                    if not peer_conn == "" and not plf.data.conn_peer == "":
+                        pid_peer = plf.data.conn_peer.strip('\"')
+                        pid = gbls.router_prefix_by_id.get(pid_peer, "")
+                        if not pid == "":
+                            pid = pid + "_" + peer_conn
+                            hit = sorted((cid, pid))
+                            if not hit in peer_list:
+                                peer_list.append( hit )
+
+
     for (key, val) in peer_list:
         if key in gbls.conn_peers_connid:
             sys.exit('key val messed up')
@@ -621,7 +644,7 @@ def main_except(argv):
         print("</div> </span>")
         print("</h4>")
         print("<table>")
-        print("<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId></th> <th>Peer</th> "
+        print("<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId</th> <th>Peer</th> "
               "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
         t0 = None
         tlast = None

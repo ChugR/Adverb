@@ -40,8 +40,9 @@ class adverbl_globals:
     # len=n_logs
     router_ids = [] # raw long names
     router_display_names = []
-    router_ids_by_prefix = {}
-    router_display_by_prefix = {}
+    router_ids_by_prefix = {}        # ['B'] = 'QDR.B'
+    router_display_by_prefix = {}    # ['B'] = 'QDR.B'  not necessarily same as ids_by_prefix
+    router_prefix_by_id = {}         # ['QDR.B'] = 'B'
 
     # list of list of connections as discovered in files
     # [ [1,2,3], [1,3,2,4]], that is: [[A's conns], [B's conns], ...]
