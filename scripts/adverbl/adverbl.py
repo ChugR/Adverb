@@ -40,7 +40,6 @@ import cgi
 import ast
 
 from adverbl_log_parser import *
-from adverbl_ooo import *
 from adverbl_name_shortener import *
 from adverbl_globals import *
 from adverbl_per_link_details import *
@@ -168,7 +167,7 @@ def get_router_id(fn, uniq):
     return get_some_field(fn, "SERVER (info) Container Name:", uniq)
 
 
-def parse_log_file(fn, log_id, ooo_tracker, gbls):
+def parse_log_file(fn, log_id, gbls):
     '''
     Given a file name, return the parsed lines for display.
     Lines that don't parse are identified on stderr and then discarded.
@@ -183,7 +182,6 @@ def parse_log_file(fn, log_id, ooo_tracker, gbls):
             lineno += 1
             if lineno == 162:
                 pass # break
-            ooo_tracker.process_line(lineno, line)
             if "ROUTER_LS (info)" in line:
                 pl = ParsedLogLine(log_id, lineno, line, gbls)
                 if pl is not None:
@@ -237,7 +235,6 @@ def main_except(argv):
     # per log file workspace
 
     log_array = []
-    ooo_array = []
 
     # connection peers
     # key=decorated name 'A_3'
@@ -255,9 +252,7 @@ def main_except(argv):
             sys.exit('ERROR: log file %s was not found!' % arg_log_file)
 
         # parse the log file
-        ooo = LogLinesOoo(log_letter)
-        ooo_array.append(ooo)
-        tree = parse_log_file(arg_log_file, log_letter, ooo, gbls)
+        tree = parse_log_file(arg_log_file, log_letter, gbls)
         if len(tree) == 0:
             sys.exit('WARNING: log file %s has no Adverbl data!' % arg_log_file)
 
@@ -755,32 +750,6 @@ def main_except(argv):
             print("</tr>")
     print ("</table>")
     print("<hr>")
-
-    # Out-of-order histogram
-    # Don't print if all zeros
-    printooo = False
-    for ooo in ooo_array:
-        for h in ooo.histogram:
-            if not str(h) == '0':
-                printooo = True
-    if printooo:
-        print("<h3>Out of order stats</h3><br>")
-        print("<table>")
-        heads = ooo_array[0].titles()
-        print("  <tr>")
-        print("    <th>File</th>")
-        for h in heads:
-            print("<th>%s</th>" % h)
-        print("<th>max</th> <th>line #</th>")
-        print("  </tr>")
-        for ooo in ooo_array:
-            print("  <tr>")
-            print("  <td>%s</td>" % ooo.prefix)
-            for h in ooo.histogram:
-                print("  <td>%s</td>" % h)
-            print("  <td>%s</td> <td>%d</td>" % (ooo.high_delta, ooo.high_lineno))
-            print("  </tr>")
-        print("</table>")
 
     print("</body>")
 
