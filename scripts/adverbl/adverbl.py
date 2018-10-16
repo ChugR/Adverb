@@ -743,7 +743,12 @@ def main_except(argv):
                 line = line[sti:]
                 dict = ast.literal_eval(line)
                 for i in range(0, gbls.n_logs):
-                    val = dict[gbls.router_ids[i]] if gbls.router_ids[i] in dict else nbsp()
+                    if gbls.router_ids[i] in dict:
+                        val = dict[gbls.router_ids[i]]
+                    elif gbls.log_letter_of(i) == plf.prefix:
+                        val = nbsp()
+                    else:
+                        val = "<span style=\"background-color:yellow\">%s</span>" % (nbsp() * 4)
                     print("<td>%s</td>" % val)
             except:
                 pass
