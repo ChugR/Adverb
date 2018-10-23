@@ -55,7 +55,7 @@ class Router():
         lines = []
 
         # conn_list - List of connections discovered in log lines
-        # Sorted in ascending order. Not necessarily in packed sequence.
+        # Sorted in ascending order and not necessarily in packed sequence.
         conn_list = []
 
         # conn_peer - peer container long name
