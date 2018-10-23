@@ -23,8 +23,9 @@ from __future__ import unicode_literals
 from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
-import re
-from adverbl_test_data import *
+
+import traceback
+import test_data as td
 
 
 class Splitter():
@@ -82,10 +83,8 @@ class Splitter():
 
 if __name__ == "__main__":
 
-    data_source = TestData()
-    data = data_source.data()
     try:
-        for line in data:
+        for line in td.TestData().data():
             if not "transfer" in line:
                 print (Splitter.split(line))
                 print ()

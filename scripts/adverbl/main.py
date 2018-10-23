@@ -51,81 +51,6 @@ class ExitStatus(Exception):
     def __init__(self, status): self.status = status
 
 
-def lozenge():
-    '''
-    :return: HTML document lozenge character
-    '''
-    return "&#9674;"
-
-
-def nbsp():
-    '''
-    :return: HTML Non-breaking space
-    '''
-    return "&#160;"
-
-
-    # html head, start body
-def fixed_head():
-    return '''<!DOCTYPE html>
-<html>
-<head>
-<title>Adverbl Analysis - qpid-dispatch router logs</title>
-
-<style>
-    * { 
-    font-family: sans-serif; 
-}
-table {
-    border-collapse: collapse;
-}
-table, td, th {
-    border: 1px solid black;
-    padding: 3px;
-}
-</style>
-
-<script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script>
-<!-- <script src="http://ajax.googleapis.com/ajax/libs/dojo/1.4/dojo/dojo.xd.js" type="text/javascript"></script> -->
-<script type="text/javascript">
-function node_is_visible(node)
-{
-  if(dojo.isString(node))
-    node = dojo.byId(node);
-  if(!node) 
-    return false;
-  return node.style.display == "block";
-}
-function set_node(node, str)
-{
-  if(dojo.isString(node))
-    node = dojo.byId(node);
-  if(!node) return;
-  node.style.display = str;
-}
-function toggle_node(node)
-{
-  if(dojo.isString(node))
-    node = dojo.byId(node);
-  if(!node) return;
-  set_node(node, (node_is_visible(node)) ? 'none' : 'block');
-}
-function hide_node(node)
-{
-  set_node(node, 'none');
-}
-function show_node(node)
-{
-  set_node(node, 'block');
-}
-
-function go_back()
-{
-  window.history.back();
-}
-'''
-
-
 def get_some_field(fn, fld_prefix, uniq):
     '''
     Extract some string from a log file using simple text search.
@@ -165,43 +90,6 @@ def get_router_version(fn, uniq):
 
 def get_router_id(fn, uniq):
     return get_some_field(fn, "SERVER (info) Container Name:", uniq)
-
-
-def parse_log_file(fn, log_id, gbls):
-    '''
-    Given a file name, return the parsed lines for display.
-    Lines that don't parse are identified on stderr and then discarded.
-    :param fn: file name
-    :param log_id: router id (prefix letter)
-    :return: list of ParsedLogLines
-    '''
-    lineno = 0
-    parsed_lines = []
-    with open(fn, 'r') as infile:
-        for line in infile:
-            lineno += 1
-            if lineno == 162:
-                pass # break
-            if "ROUTER_LS (info)" in line:
-                pl = ParsedLogLine(log_id, lineno, line, gbls)
-                if pl is not None:
-                    if pl.data.is_router_ls:
-                        gbls.router_ls.append(pl)
-            elif "[" in line and "]" in line:
-                try:
-                    pl = ParsedLogLine(log_id, lineno, line, gbls)
-                    if pl is not None:
-                        parsed_lines.append(pl)
-                except ValueError as ve:
-                    pass
-                except Exception as e:
-                    #t, v, tb = sys.exc_info()
-                    if hasattr(e, 'message'):
-                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e.message))
-                    else:
-                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e))
-                    #raise t, v, tb
-    return parsed_lines
 
 
 def show_noteworthy_line(plf, gbls):
@@ -428,23 +316,7 @@ def main_except(argv):
     #
 
     # Table of contents
-    print("<h3>Contents</h3>")
-    print("<table>")
-    print("<tr> <th>Section</th> <th>Description</th> </tr>")
-    print("<tr><td><a href=\"#c_logfiles\">Log files</a></td> <td>Router and log file info</td></tr>")
-    print("<tr><td><a href=\"#c_connections\">Connections</a></td> <td>Connection overview; per connection log data view control</td></tr>")
-    print("<tr><td><a href=\"#c_conndetails\">Connection Details</a></td> <td>Connection details; frames sorted by link</td></tr>")
-    print("<tr><td><a href=\"#c_noteworthy\">Noteworthy log lines</a></td> <td>AMQP errors and interesting flags</td></tr>")
-    print("<tr><td><a href=\"#c_logdata\">Log data</a></td> <td>Main AMQP traffic table</td></tr>")
-    print("<tr><td><a href=\"#c_messageprogress\">Message progress</a></td> <td>Tracking messages through the system</td></tr>")
-    print("<tr><td><a href=\"#c_linkprogress\">Link name propagation</a></td> <td>Tracking link names</td></tr>")
-    print("<tr><td><a href=\"#c_rtrdump\">Router name index</a></td> <td>Short vs. long router container names</td></tr>")
-    print("<tr><td><a href=\"#c_peerdump\">Peer name index</a></td> <td>Short vs. long peer names</td></tr>")
-    print("<tr><td><a href=\"#c_linkdump\">Link name index</a></td> <td>Short vs. long link names</td></tr>")
-    print("<tr><td><a href=\"#c_msgdump\">Transfer name index</a></td> <td>Short names representing transfer data</td></tr>")
-    print("<tr><td><a href=\"#c_ls\">Router link state</a></td> <td>Link state analysis</td></tr>")
-    print("</table>")
-    print("<hr>")
+    print(toc)
 
     # file(s) included in this doc
     print("<a name=\"c_logfiles\"></a>")

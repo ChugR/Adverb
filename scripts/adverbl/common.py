@@ -22,9 +22,10 @@
 # Common data storage and utilities
 
 import sys
-from adverbl_name_shortener import *
 
-class adverbl_globals:
+import nicknamer
+
+class Common():
 
     # first letter of the connection names
     log_char_base = 'A'
@@ -43,5 +44,16 @@ class adverbl_globals:
     # ordered list of connection names across all routers
     all_conn_names = []
 
-    shorteners = Shorteners()
+    shorteners = nicknamer.Shorteners()
+
+
+    def log_letter_of(self, idx):
+        '''
+        Return the letter A, B, C, ... from the index 0..n
+        :param idx:
+        :return: A..Z
+        '''
+        if idx >= 26:
+            sys.exit('ERROR: too many log files')
+        return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[idx]
 

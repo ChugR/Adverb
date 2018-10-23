@@ -33,16 +33,25 @@ from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
 
-import os
 import sys
 import traceback
-import cgi
-import ast
+import datetime
 
-from adverbl_log_parser import *
-from adverbl_name_shortener import *
-from adverbl_globals import *
-from adverbl_per_link_details import *
+import parser
+import nicknamer
+
+class RestartRecord():
+    def __init__(self, _logletter, _line, _lineno):
+        self.logletter = _logletter
+        self.line = _line
+        self.lineno = _lineno
+        try:
+            self.datetime = datetime.strptime(self.line[:26], '%Y-%m-%d %H:%M:%S.%f')
+        except:
+            self.datetime = datetime(1970, 1, 1)
+
+    def __repr__(self):
+        return "%s new instance start %s #%d" % (self.logletter, self.datetime, self.lineno)
 
 class Router():
     '''A single dispatch boot-and-run instance from a log file'''
@@ -51,8 +60,11 @@ class Router():
         log_index = _log_index   # 0=A, 1=B, ...
         instance = _instance     # log file instance of router
 
-        # lines - the raw log lines
+        # lines - the log lines as ParsedLogLine objects
         lines = []
+
+        # restart_rec - when this router was identified in log file
+        restart_rec = None
 
         # conn_list - List of connections discovered in log lines
         # Sorted in ascending order and not necessarily in packed sequence.
@@ -88,7 +100,6 @@ class Router():
 
         # router_ls - link state 'ROUTER_LS (info)' lines
         router_ls = []
-
 
 
 

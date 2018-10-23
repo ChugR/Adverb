@@ -23,12 +23,17 @@ from __future__ import unicode_literals
 from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
+
 from datetime import *
 import re
-from adverbl_splitter import *
-from adverbl_test_data import *
-from adverbl_name_shortener import *
-from adverbl_globals import *
+import sys
+import traceback
+
+import splitter
+import test_data as td
+import nicknamer
+import common
+import text
 
 
 def colorize_bg(what):
@@ -38,17 +43,11 @@ def colorize_bg(what):
 
 class LogLineData():
 
-    def direction_in(self):
-        return "<-"
-
-    def direction_out(self):
-        return "->"
-
     def direction_is_in(self):
-        return self.direction == self.direction_in()
+        return self.direction == text.direction_in()
 
     def direction_is_out(self):
-        return self.direction == self.direction_out()
+        return self.direction == text.direction_out()
 
     def __init__(self):
         self.web_show_str = ""
@@ -99,47 +98,6 @@ class LogLineData():
         self.link_class = "normal" # attach sees: normal, router, router-data (, management?)
         self.disposition_display = ""
         self.final_disposition = None
-
-    def __repr__(self):
-        return self._representation()
-
-    def _representation(self):
-        all = []
-        all.append("web_show_str : '%s'" % self.web_show_str)
-        all.append("name : '%s'" % self.name)
-        all.append("conn_num : '%s'" % self.conn_num)
-        all.append("conn_id : '%s'" % self.conn_id)
-        all.append("channel : '%s'" % self.channel)
-        all.append("direction : '%s'" % self.direction)
-        all.append("described_type : '%s'" % self.described_type)
-        all.append("handle : '%s'" % self.handle)
-        all.append("delivery_id : '%s'" % self.delivery_id)
-        all.append("delivery_tag : '%s'" % self.delivery_tag)
-        all.append("remote : '%s'" % self.remote)
-        all.append("channel_handle : '%s'" % self.channel_handle)
-        all.append("channel_remote : '%s'" % self.channel_remote)
-        all.append("flow_deliverycnt : '%s'" % self.flow_deliverycnt)
-        all.append("flow_linkcredit : '%s'" % self.flow_linkcredit)
-        all.append("flow_cnt_credit : '%s'" % self.flow_cnt_credit)
-        all.append("transfer_id : '%s'" % self.transfer_id)
-        all.append("role : '%s'" % self.role)
-        all.append("source : '%s'" % self.source)
-        all.append("target : '%s'" % self.target)
-        all.append("first : '%s'" % self.first)
-        all.append("last : '%s'" % self.last)
-        all.append("settled : '%s'" % self.settled)
-        all.append("transfer_data : '%s'" % self.transfer_data)
-        all.append("transfer_size : '%s'" % self.transfer_size)
-        all.append("transfer_short_name : '%s'" % self.transfer_short_name)
-        all.append("transfer_aborted : %s" % self.transfer_aborted)
-        all.append("link_short_name : %s" % self.link_short_name)
-        all.append("is_policy_trace : '%s'" % self.is_policy_trace)
-        all.append("is_server_info : '%s'" % self.is_server_info)
-        all.append("fid : '%s'" % self.fid)
-        all.append("amqp_error : '%s'" % self.amqp_error)
-        all.append("link_class : '%s'" % self.link_class)
-
-        return ('\n'.join(all))
 
 
 class DescribedType():
@@ -237,7 +195,7 @@ class DescribedType():
         # the remainder, no matter how unlikely, must be the delivery-tag
         self.addFieldToDict(self.line, "delivery-tag")
 
-    def parse(self, _dtype, _line):
+    def parse_dtype_line(self, _dtype, _line):
         '''
         Figure out the fields for the described type.
         The line format is:
@@ -268,7 +226,7 @@ class DescribedType():
         self.line = self.line[:-1]
 
         # process fields
-        fields = Splitter.split(self.line)
+        fields = splitter.Splitter.split(self.line)
         while len ( fields ) > 0 and len ( fields [ 0 ] ) >  0:
             if not '=' in fields[0]:
                 raise ValueError("Field does not contain equal sign '%s'" % fields[0])
@@ -299,7 +257,7 @@ class DescribedType():
                         del fields[0]
 
                 subtype = DescribedType()
-                subtype.parse(val, ' '.join(subfields))
+                subtype.parse_dtype_line(val, ' '.join(subfields))
                 self.dict[key] = subtype
             elif val.startswith( '{' ):
                 # handle some embedded map: properties={:product=\"qpid-dispatch-router\", :version=\"1.3.0-SNAPSHOT\"}
@@ -385,7 +343,7 @@ class ParsedLogLine(object):
             res.name = "open"
             res.channel = "0"
             res.web_show_str = "<strong>%s</strong> [%s]" % (res.name, res.channel)
-            if res.direction == res.direction_in():
+            if res.direction == text.direction_in():
                 res.conn_peer = self.resdict_value(resdict, "container-id", "unknown")
                 res.web_show_str += (" (peer: %s)" % res.conn_peer)
 
@@ -685,7 +643,7 @@ class ParsedLogLine(object):
         '''
         return "<a href=\"#%s\">%s</a>" % (self.fid, "%s_%s" % (self.prefix, str(self.lineno)))
 
-    def __init__(self, _prefix, _lineno, _line, _gbls):
+    def __init__(self, _log_index, _instance, _lineno, _line, _comn):
         '''
         Process a naked qpid-dispatch log line
         A log line looks like this:
@@ -716,11 +674,12 @@ class ParsedLogLine(object):
                 ParsedLogLine.router_ls_key in _line):
             raise ValueError("Line is not a candidate for parsing")
         self.oline = _line        # original line
-        self.prefix = _prefix     # router prefix
+        self.index = _log_index   # router prefix 0 for A, 1 for B
+        self.instance = _instance # router instance in log file
         self.lineno = _lineno     # log line number
-        self.gbls   = _gbls
-        self.fid = "f_" + self.prefix + "_" + str(self.lineno) # frame id
-        self.shorteners = _gbls.shorteners # name shorteners
+        self.comn   = _comn
+        self.fid = "f_" + self.comn.log_letter_of(self.index) + "_" + str(self.lineno) # frame id
+        self.shorteners = _comn.shorteners # name shorteners
 
         self.line = _line         # working line chopped, trimmed
 
@@ -782,7 +741,7 @@ class ParsedLogLine(object):
         self.line = self.line[ste + 1:]
 
         # create decorated connection id
-        self.data.conn_id = self.prefix + "_" + self.data.conn_num
+        self.data.conn_id = self.comn.log_letter_of(self.index) + "_" + self.data.conn_num
 
         # get the session (channel) number
         if self.line.startswith(':'):
@@ -838,20 +797,79 @@ class ParsedLogLine(object):
                 self.data.transfer_data = "(none)"
 
         if DescribedType.is_dtype_name ( dname ) :
-            self.data.described_type.parse(dname, self.line)
+            self.data.described_type.parse_dtype_line(dname, self.line)
             # data fron incoming line is now parsed out into facts in .data
             # Now cook the data to get useful displays
             self.extract_facts()
 
 
+def parse_log_file(fn, log_index, common):
+    '''
+    Given a file name, return an array of Routers that hold the parsed lines.
+    Lines that don't parse are identified on stderr and then discarded.
+    :param fn: file name
+    :param log_index: router id 0 for 'A', 1 for 'B', ...
+    :param common: common data
+    :return: list of Routers
+    '''
+    instance = 0
+    lineno = 0
+    search_for_in_progress = True
+    routers = []
+    router = None
+    with open(fn, 'r') as infile:
+        for line in infile:
+            if search_for_in_progress:
+                # What if the log file has no record of the router starting?
+                # This is an in_progress router and it is a pre-existing router instance
+                # and not one found by restart discovery.
+                if "SERVER (trace) [" in line:
+                    router = router.Router(log_index, instance)
+                    routers.append(router)
+                    router.restart_rec = router.RestartRecord(log_index, line, lineno)
+                    search_for_in_progress = False
+            lineno += 1
+            if "SERVER (info) Container Name:" in line:
+                instance += 1
+                router = router.Router(log_index, instance)
+                routers.append(router)
+                router.restart_rec = router.RestartRecord(log_index, line, lineno)
+                search_for_in_progress = False
+            elif "ROUTER_LS (info)" in line:
+                pl = ParsedLogLine(log_index, instance, lineno, line, gbls)
+                if pl is not None:
+                    if pl.data.is_router_ls:
+                        router.router_ls.append(pl)
+            elif "[" in line and "]" in line:
+                try:
+                    pl = ParsedLogLine(log_id, lineno, line, gbls)
+                    if pl is not None:
+                        router.lines.append(pl)
+                except ValueError as ve:
+                    pass
+                except Exception as e:
+                    #t, v, tb = sys.exc_info()
+                    if hasattr(e, 'message'):
+                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e.message))
+                    else:
+                        sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e))
+                    #raise t, v, tb
+            else:
+                # ignore this log line
+                pass
+    return routers
+
+
+
 if __name__ == "__main__":
 
-    data_source = TestData()
-    data = data_source.data()
-    gbls = adverbl_globals()
+    data = td.TestData().data()
+    log_index = 0    # from file for router A
+    instance = 0     # all from router instance 0
+    common = common.Common()
     try:
         for i in range(len(data)):
-            temp = ParsedLogLine('A', i, data[i], gbls)
+            temp = ParsedLogLine(log_index, instance, i, data[i], common)
             print(temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str)
         pass
     except:
