@@ -35,7 +35,7 @@ class TestData():
     and runs the risk of corrupting the data.
     '''
     def __init__(self):
-        with open('test_data.txt', 'r') as f:
+        with open('test_data/test_data.txt', 'r') as f:
             self.lines = [line.rstrip('\n') for line in f]
 
     def data(self):
