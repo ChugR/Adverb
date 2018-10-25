@@ -54,7 +54,7 @@ class LogLineData():
         self.web_show_str = ""
         self.name = ""
         self.conn_num = "" # source router's undecorated conn num
-        self.conn_id = "" # decorated routerPrefix-conn_num
+        self.conn_id = "" # decorated routerPrefixLetter'instanceNumber-conn_num
         self.conn_peer = "" # display name of peer in seen in Open 'A - routerId.Test'
         self.channel = ""  # undecorated number - '0'
         self.direction = "" # '<-' IN, or '->' OUT, or '--'
@@ -292,11 +292,11 @@ class ParsedLogLine(object):
     Grind through the log line and record some facts about it.
     * Constructor returns Null if the log line is to be ignored
     * Constructor args:
-    ** router-name prefix letter A..Z
+    ** log_index          0 for 'A', 1 for 'B'
+    ** routerInstance     which instance in log file
     ** lineno             line number
     ** line               the log line
-
-   **
+    ** common             common block object
     '''
     server_trace_key = "SERVER (trace) ["
     server_info_key  = "SERVER (info) ["
@@ -642,7 +642,8 @@ class ParsedLogLine(object):
         '''
         :return: html link to the main adverbl data display for this line
         '''
-        return "<a href=\"#%s\">%s</a>" % (self.fid, "%s_%s" % (self.prefix, str(self.lineno)))
+        return "<a href=\"#%s\">%s</a>" % (self.fid, "%s%d_%s" %
+                                           (common.log_letter_of(self.index), self.instance, str(self.lineno)))
 
     def __init__(self, _log_index, _instance, _lineno, _line, _comn):
         '''
@@ -665,7 +666,8 @@ class ParsedLogLine(object):
           @describedtypename(num) [key=val [, key=val ...]]
             except for transfers that have the funky transfer data at end.
 
-        :param _prefix: The router prefix letter A, B, C, ...
+        :param _log_index:   The router prefix index 0 for A, 1 for B, ...
+        :param _instance     The router instance
         :param _lineno:
         :param _line:
         '''
@@ -679,7 +681,8 @@ class ParsedLogLine(object):
         self.instance = _instance # router instance in log file
         self.lineno = _lineno     # log line number
         self.comn   = _comn
-        self.fid = "f_" + common.log_letter_of(self.index) + "_" + str(self.lineno) # frame id
+        self.prefixi= common.log_letter_of(self.index) + str(self.instance) # prefix+instance A0
+        self.fid = "f_" + self.prefixi + "_" + str(self.lineno)             # frame id A0_100
         self.shorteners = _comn.shorteners # name shorteners
 
         self.line = _line         # working line chopped, trimmed

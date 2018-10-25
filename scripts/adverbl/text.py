@@ -107,23 +107,24 @@ function go_back()
 
 
 def web_page_toc():
-    return '''    print("<h3>Contents</h3>")
-    print("<table>")
-    print("<tr> <th>Section</th>                                                 <th>Description</th> </tr>")
-    print("<tr><td><a href=\"#c_logfiles\"       >Log files</a></td>             <td>Router and log file info</td></tr>")
-    print("<tr><td><a href=\"#c_connections\"    >Connections</a></td>           <td>Connection overview; per connection log data view control</td></tr>")
-    print("<tr><td><a href=\"#c_conndetails\"    >Connection Details</a></td>    <td>Connection details; frames sorted by link</td></tr>")
-    print("<tr><td><a href=\"#c_noteworthy\"     >Noteworthy log lines</a></td>  <td>AMQP errors and interesting flags</td></tr>")
-    print("<tr><td><a href=\"#c_logdata\"        >Log data</a></td>              <td>Main AMQP traffic table</td></tr>")
-    print("<tr><td><a href=\"#c_messageprogress\">Message progress</a></td>      <td>Tracking messages through the system</td></tr>")
-    print("<tr><td><a href=\"#c_linkprogress\"   >Link name propagation</a></td> <td>Tracking link names</td></tr>")
-    print("<tr><td><a href=\"#c_rtrdump\"        >Router name index</a></td>     <td>Short vs. long router container names</td></tr>")
-    print("<tr><td><a href=\"#c_peerdump\"       >Peer name index</a></td>       <td>Short vs. long peer names</td></tr>")
-    print("<tr><td><a href=\"#c_linkdump\"       >Link name index</a></td>       <td>Short vs. long link names</td></tr>")
-    print("<tr><td><a href=\"#c_msgdump\"        >Transfer name index</a></td>   <td>Short names representing transfer data</td></tr>")
-    print("<tr><td><a href=\"#c_ls\"             >Router link state</a></td>     <td>Link state analysis</td></tr>")
-    print("</table>")
-    print("<hr>")
+    return '''
+<h3>Contents</h3>
+<table>
+<tr> <th>Section</th>                                                 <th>Description</th> </tr>
+<tr><td><a href=\"#c_logfiles\"       >Log files</a></td>             <td>Router and log file info</td></tr>
+<tr><td><a href=\"#c_connections\"    >Connections</a></td>           <td>Connection overview; per connection log data view control</td></tr>
+<tr><td><a href=\"#c_conndetails\"    >Connection Details</a></td>    <td>Connection details; frames sorted by link</td></tr>
+<tr><td><a href=\"#c_noteworthy\"     >Noteworthy log lines</a></td>  <td>AMQP errors and interesting flags</td></tr>
+<tr><td><a href=\"#c_logdata\"        >Log data</a></td>              <td>Main AMQP traffic table</td></tr>
+<tr><td><a href=\"#c_messageprogress\">Message progress</a></td>      <td>Tracking messages through the system</td></tr>
+<tr><td><a href=\"#c_linkprogress\"   >Link name propagation</a></td> <td>Tracking link names</td></tr>
+<tr><td><a href=\"#c_rtrdump\"        >Router name index</a></td>     <td>Short vs. long router container names</td></tr>
+<tr><td><a href=\"#c_peerdump\"       >Peer name index</a></td>       <td>Short vs. long peer names</td></tr>
+<tr><td><a href=\"#c_linkdump\"       >Link name index</a></td>       <td>Short vs. long link names</td></tr>
+<tr><td><a href=\"#c_msgdump\"        >Transfer name index</a></td>   <td>Short names representing transfer data</td></tr>
+<tr><td><a href=\"#c_ls\"             >Router link state</a></td>     <td>Link state analysis</td></tr>
+</table>
+<hr>
 '''
 
 

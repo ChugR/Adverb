@@ -88,7 +88,7 @@ def main_except(argv):
     comn = common.Common()
 
     # connection peers
-    # key=decorated name 'A_3'
+    # key=decorated connection name 'A0_3'
     conn_log_lines = {}     # val = count of log lines
     conn_xfer_bytes = {}    # val = transfer byte count
 
@@ -111,12 +111,15 @@ def main_except(argv):
         for rtr in rtrs:
             rtr.get_connection_facts()
 
-    # create tree to hold list of all log lines sorted by time
+    # create trees to hold list of all log lines and link state lines sorted by time
     tree = []
+    ls_tree = []
     for rtrlist in comn.routers:
         for rtr in rtrlist:
             tree += rtr.lines
+            ls_tree += rtr.router_ls
     tree = sorted(tree, key=lambda lfl: lfl.datetime)
+    ls_tree = sorted(ls_tree, key=lambda lfl: lfl.datetime)
 
     # back-propagate a router name/version to each list's router0.
     # complain if container name or version changes between runs
@@ -139,13 +142,6 @@ def main_except(argv):
                     sys.exit('Inconsistent router versions, log file %s, instance %d:%s but instance %d:%s' %
                              (comn.log_fns[fi], i, namei, i+1, namej))
 
-    # # create tree and ls_tree to hold combined log entries from all routers
-    # # sort the combined log entries based on the log line timestamps
-    # tree = sorted(log_array, key=lambda lfl: lfl.datetime)
-    #
-    # # sort the link state list
-    # ls_tree = sorted(comn.router_ls, key=lambda lfl: lfl.datetime)
-    #
     # # generate the router name display helper lists
     # for i in range(comn.n_logs):
     #     log_letter = comn.log_letter_of(i)
@@ -305,6 +301,12 @@ def main_except(argv):
     print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
     print("</p>")
 
+    # +------+--------------------+-----+--------------------+-------+-------+----------+--------+
+    # | View |       Router       | Dir |       Peer         | Log   | N     | Transfer | AMQP   |
+    # |      +-----------+--------+     +--------+-----------+ lines | links | bytes    | errors |
+    # |      | container | connid |     | connid | container |       |       |          |        |
+    # +------+-----------+--------+-----+--------+-----------+-------+-------+----------+--------+
+
     print("<table><tr> <th rowspan=\"2\">View</th> <th colspan=\"2\">Router</th> <th rowspan=\"2\">Dir</th> <th colspan=\"2\">Peer</th> <th rowspan=\"2\">Log lines</th> "
           "<th rowspan=\"2\">N links</th><th rowspan=\"2\">Transfer bytes</th> <th rowspan=\"2\">AMQP errors</th></tr>")
     print("<tr> <th>container</th> <th>connid</th> <th>connid</th> <th>container</th></tr>")
@@ -448,10 +450,10 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, text.lozenge(), text.nbsp())
-        rid = gbls.router_display_by_prefix[plf.prefix]
-        peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
-        peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
-        print(loz, plf.datetime, ("%s#%d" % (plf.prefix, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
+        rid =  "RID" # gbls.router_display_by_prefix[plf.prefix]
+        peerconnid = "PEERCONNID" # ""[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
+        peer = "PEER" #gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+        print(loz, plf.datetime, ("%s#%d" % (plf.prefixi, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
               plf.data.direction, peerconnid, peer,
               plf.data.web_show_str, plf.data.disposition_display, "<br>")
         print(" <div width=\"100%%\"; "
