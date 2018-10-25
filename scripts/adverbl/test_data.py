@@ -31,11 +31,11 @@ class TestData():
     '''
     Extract list of test log lines from a data file.
     The file holds literal log lines from some noteworthy test logs.
-    Embedding the lines as a data statement involves escaping double quotes
-    and runs the risk of corrupting the data.
+    Embedding the lines as a python source code data statement involves escaping
+    double quotes and runs the risk of corrupting the data.
     '''
-    def __init__(self):
-        with open('test_data/test_data.txt', 'r') as f:
+    def __init__(self, fn="test_data/test_data.txt"):
+        with open(fn, 'r') as f:
             self.lines = [line.rstrip('\n') for line in f]
 
     def data(self):

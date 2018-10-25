@@ -37,70 +37,133 @@ import sys
 import traceback
 import datetime
 
+import common
 import parser
 import nicknamer
+import text
 
 class RestartRecord():
-    def __init__(self, _logletter, _line, _lineno):
-        self.logletter = _logletter
+    def __init__(self, _log_index, _line, _lineno):
+        self.log_index = _log_index
         self.line = _line
         self.lineno = _lineno
         try:
-            self.datetime = datetime.strptime(self.line[:26], '%Y-%m-%d %H:%M:%S.%f')
+            self.datetime = datetime.datetime.strptime(self.line[:26], '%Y-%m-%d %H:%M:%S.%f')
         except:
-            self.datetime = datetime(1970, 1, 1)
+            self.datetime = datetime.datetime(1970, 1, 1)
 
     def __repr__(self):
-        return "%s new instance start %s #%d" % (self.logletter, self.datetime, self.lineno)
+        return "%d new instance start %s #%d" % (self.log_index, self.datetime, self.lineno)
 
 class Router():
     '''A single dispatch boot-and-run instance from a log file'''
 
     def __init__(self, _log_index, _instance):
-        log_index = _log_index   # 0=A, 1=B, ...
-        instance = _instance     # log file instance of router
+        self.log_index = _log_index   # 0=A, 1=B, ...
+        self.instance = _instance     # log file instance of router
 
-        # lines - the log lines as ParsedLogLine objects
-        lines = []
+        # discovered Container Name
+        self.container_name = None
+
+        # discovered Version
+        self.version = None
 
         # restart_rec - when this router was identified in log file
-        restart_rec = None
+        self.restart_rec = None
+
+        # lines - the log lines as ParsedLogLine objects
+        self.lines = []
 
         # conn_list - List of connections discovered in log lines
         # Sorted in ascending order and not necessarily in packed sequence.
-        conn_list = []
+        self.conn_list = []
 
         # conn_peer - peer container long name
         #   key= connection id '1', '2'
         #   val= original peer container name
-        conn_peer = {}
+        self.conn_peer = {}
 
         # conn_peer_display - peer container display name
         #   key= connection id '1', '2'
         #   val= display name
         # Peer display name shortened with popup if necessary
-        conn_peer_display = {}
+        self.conn_peer_display = {}
 
         # conn_peer_connid - display value for peer's connection id
         #   key= connection id '1', '2'
         #   val= peer's connid 'A.0_3', 'D.3_18'
-        conn_peer_connid = {}
+        self.conn_peer_connid = {}
 
         # conn_dir - arrow indicating connection origin direction
         #   key= connection id '1', '2'
         #   val= '<-' peer created conn, '->' router created conn
-        conn_dir = {}
+        self.conn_dir = {}
 
         # conn_details - AMQP analysis
         #   key= connection id '1', '2'
         #   val= ConnectionDetails
         # for each connection, for each session, for each link:
         #   what happened
-        conn_details = {}
+        self.conn_details = {}
 
         # router_ls - link state 'ROUTER_LS (info)' lines
-        router_ls = []
+        self.router_ls = []
 
+
+    def get_connection_facts(self):
+        for item in self.lines:
+            conn_num = int(item.data.conn_num)
+            if conn_num not in self.conn_list:
+                self.conn_list.append(conn_num)
+                cdir = ""
+                if not item.data.direction == "":
+                    cdir = item.data.direction
+                else:
+                    if "Connecting" in item.data.web_show_str:
+                        cdir = text.direction_out()
+                    elif "Accepting" in item.data.web_show_str:
+                        cdir = text.direction_in()
+                self.conn_dir[item.data.conn_id] = cdir
+            #     # TODO FIXME
+            #     # conn_log_lines[item.data.conn_id] = 0   # line counter TODO
+            #     # conn_xfer_bytes[item.data.conn_id] = 0  # byte counter TODO
+            #     # inbound open handling
+            # if item.data.name == "open" and item.data.direction == item.data.direction_in():
+            #     if item.data.conn_id in self.conn_peers:
+            #         sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (
+            #         arg_log_file, item.data.conn_id))
+            #     comn.conn_peers[item.data.conn_id] = item.data.conn_peer
+            #     comn.conn_peers_popup[item.data.conn_id] = comn.shorteners.short_peer_names.translate(
+            #         item.data.conn_peer, True)
+            #     # per-log-line count
+            # conn_log_lines[item.data.conn_id] += 1
+            # # transfer byte count
+            # if item.data.name == "transfer":
+            #     conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
+        self.conn_list = sorted(self.conn_list)
+
+    def conn_id(self, conn_num):
+        t1 = common.log_letter_of(self.log_index)
+        t2 = str(self.instance)
+        t3 = str(conn_num)
+        return t1 + t2 + "_" + t3
+
+
+def which_router_tod(router_list, at_time):
+    '''
+    Find a router in a list based on time of day
+    :param router_list: a list of Router objects
+    :param at_time: the datetime record identifying the router
+    :return: a router from the list or None
+    '''
+    if len(router_list) == 0:
+        return None
+    if len(router_list) == 1:
+        return router_list[0]
+    for i in range(1, len(router_list)):
+        if at_time < router_list[i].restart_rec.datetime:
+            return router_list[i-1]
+    return router_list[-1]
 
 
 if __name__ == "__main__":

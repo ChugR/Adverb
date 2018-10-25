@@ -22,9 +22,11 @@ from __future__ import unicode_literals
 from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
+
 import sys
 import traceback
-from adverbl_globals import *
+
+import common
 
 '''
 Given a map of all connections with lists of the associated frames

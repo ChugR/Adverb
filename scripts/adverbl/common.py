@@ -41,19 +41,22 @@ class Common():
     # len=n_logs
     router_ids = [] # raw long names
 
+    # list of router-instance lists
+    # [[A0, A1], [B0], [C0, C1, C2]]
+    routers = []
+
     # ordered list of connection names across all routers
     all_conn_names = []
 
     shorteners = nicknamer.Shorteners()
 
-
-    def log_letter_of(self, idx):
-        '''
-        Return the letter A, B, C, ... from the index 0..n
-        :param idx:
-        :return: A..Z
-        '''
-        if idx >= 26:
-            sys.exit('ERROR: too many log files')
-        return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[idx]
+def log_letter_of(idx):
+    '''
+    Return the letter A, B, C, ... from the index 0..n
+    :param idx:
+    :return: A..Z
+    '''
+    if idx >= 26:
+        sys.exit('ERROR: too many log files')
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[idx]
 

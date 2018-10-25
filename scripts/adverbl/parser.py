@@ -34,6 +34,7 @@ import test_data as td
 import nicknamer
 import common
 import text
+import router
 
 
 def colorize_bg(what):
@@ -678,7 +679,7 @@ class ParsedLogLine(object):
         self.instance = _instance # router instance in log file
         self.lineno = _lineno     # log line number
         self.comn   = _comn
-        self.fid = "f_" + self.comn.log_letter_of(self.index) + "_" + str(self.lineno) # frame id
+        self.fid = "f_" + common.log_letter_of(self.index) + "_" + str(self.lineno) # frame id
         self.shorteners = _comn.shorteners # name shorteners
 
         self.line = _line         # working line chopped, trimmed
@@ -741,7 +742,7 @@ class ParsedLogLine(object):
         self.line = self.line[ste + 1:]
 
         # create decorated connection id
-        self.data.conn_id = self.comn.log_letter_of(self.index) + "_" + self.data.conn_num
+        self.data.conn_id = common.log_letter_of(self.index) + "_" + self.data.conn_num
 
         # get the session (channel) number
         if self.line.startswith(':'):
@@ -815,36 +816,49 @@ def parse_log_file(fn, log_index, common):
     instance = 0
     lineno = 0
     search_for_in_progress = True
-    routers = []
-    router = None
+    rtrs = []
+    rtr = None
+    key1 = "SERVER (trace) ["               # AMQP traffic
+    key2 = "SERVER (info) Container Name:"  # Normal 'router is starting' restart discovery line
+    key3 = "ROUTER_LS (info)"               # a log line placed in separate pool of lines
+    keys = [key1, key3]
+    key4 = "ROUTER (info) Version:"         # router version line
     with open(fn, 'r') as infile:
         for line in infile:
             if search_for_in_progress:
                 # What if the log file has no record of the router starting?
                 # This is an in_progress router and it is a pre-existing router instance
                 # and not one found by restart discovery.
-                if "SERVER (trace) [" in line:
-                    router = router.Router(log_index, instance)
-                    routers.append(router)
-                    router.restart_rec = router.RestartRecord(log_index, line, lineno)
+                # Any key or AMQP line indicates a router in-progress
+                if any(s in line for s in keys) or ("[" in line and "]" in line):
+                    assert rtr is None
+                    rtr = router.Router(log_index, instance)
+                    rtrs.append(rtr)
                     search_for_in_progress = False
+                    rtr.restart_rec = router.RestartRecord(log_index, line, lineno + 1)
             lineno += 1
-            if "SERVER (info) Container Name:" in line:
-                instance += 1
-                router = router.Router(log_index, instance)
-                routers.append(router)
-                router.restart_rec = router.RestartRecord(log_index, line, lineno)
+            if key2 in line:
+                # This line closes the current router, if any, and opens a new one
+                if rtr is not None:
+                    instance += 1
+                rtr = router.Router(log_index, instance)
+                rtrs.append(rtr)
+                rtr.restart_rec = router.RestartRecord(log_index, line, lineno)
                 search_for_in_progress = False
-            elif "ROUTER_LS (info)" in line:
-                pl = ParsedLogLine(log_index, instance, lineno, line, gbls)
+                # extract container name
+                rtr.container_name = line[(line.find(key2) + len(key2)):].strip().split()[0]
+            elif key3 in line:
+                pl = ParsedLogLine(log_index, instance, lineno, line, common)
                 if pl is not None:
                     if pl.data.is_router_ls:
-                        router.router_ls.append(pl)
+                        rtr.router_ls.append(pl)
+            elif key4 in line:
+                rtr.version = line[(line.find(key4) + len(key4)):].strip().split()[0]
             elif "[" in line and "]" in line:
                 try:
-                    pl = ParsedLogLine(log_id, lineno, line, gbls)
+                    pl = ParsedLogLine(log_index, instance, lineno, line, common)
                     if pl is not None:
-                        router.lines.append(pl)
+                        rtr.lines.append(pl)
                 except ValueError as ve:
                     pass
                 except Exception as e:
@@ -857,7 +871,7 @@ def parse_log_file(fn, log_index, common):
             else:
                 # ignore this log line
                 pass
-    return routers
+    return rtrs
 
 
 
@@ -866,12 +880,33 @@ if __name__ == "__main__":
     data = td.TestData().data()
     log_index = 0    # from file for router A
     instance = 0     # all from router instance 0
-    common = common.Common()
+    comn = common.Common()
     try:
         for i in range(len(data)):
-            temp = ParsedLogLine(log_index, instance, i, data[i], common)
+            temp = ParsedLogLine(log_index, instance, i, data[i], comn)
             print(temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str)
         pass
     except:
         traceback.print_exc(file=sys.stdout)
         pass
+
+    comn2 = common.Common()
+    routers = parse_log_file('test_data/A-two-instances.log', 0, comn2)
+    if len(routers) != 2:
+        print("ERROR: Expected two router instances in log file")
+
+    t_b4_0 = datetime.strptime('2018-10-15 10:57:32.151673', '%Y-%m-%d %H:%M:%S.%f')
+    t_in_0 = datetime.strptime('2018-10-15 10:57:32.338183', '%Y-%m-%d %H:%M:%S.%f')
+    t_in_1 = datetime.strptime('2018-10-15 10:59:07.584498', '%Y-%m-%d %H:%M:%S.%f')
+    t_af_1 = datetime.strptime('2019-10-15 10:59:07.584498', '%Y-%m-%d %H:%M:%S.%f')
+
+    rtr = router.which_router_tod(routers, t_b4_0)
+    assert rtr is routers[0]
+    rtr = router.which_router_tod(routers, t_in_0)
+    assert rtr is routers[0]
+    rtr = router.which_router_tod(routers, t_in_1)
+    assert rtr is routers[1]
+    rtr = router.which_router_tod(routers, t_af_1)
+    assert rtr is routers[1]
+
+    pass
