@@ -46,9 +46,16 @@ class Common():
     routers = []
 
     # ordered list of connection names across all routers
+    # key = full conn_id 'A0_5'
+    # val = full conn_id 'B0_8'
+    # note names[key]=val and names[val]=key mutual reference
     all_conn_names = []
 
+    # mapping of connected routers by connection id
+    conn_peers_connid = {}
+
     shorteners = nicknamer.Shorteners()
+
 
 def log_letter_of(idx):
     '''
@@ -60,3 +67,10 @@ def log_letter_of(idx):
         sys.exit('ERROR: too many log files')
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[idx]
 
+
+class RestartRec():
+    def __init__(self, _id, _router, _event, _datetime):
+        self.id = _id
+        self.router = _router
+        self.event = _event
+        self.datetime = _datetime

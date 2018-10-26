@@ -38,8 +38,6 @@ import traceback
 import datetime
 
 import common
-import parser
-import nicknamer
 import text
 
 class RestartRecord():
@@ -119,6 +117,10 @@ class Router():
         # router_ls - link state 'ROUTER_LS (info)' lines
         self.router_ls = []
 
+        # open and close times
+        self.conn_open_time = {}   # first log line with [N] seen
+        self.conn_close_time = {}  # last close log line seen
+
 
     def discover_connection_facts(self, comn):
         '''
@@ -134,6 +136,7 @@ class Router():
         '''
         for item in self.lines:
             conn_num = int(item.data.conn_num)
+            id = item.data.conn_id
             if conn_num not in self.conn_list:
                 self.conn_list.append(conn_num)
                 cdir = ""
@@ -144,22 +147,26 @@ class Router():
                         cdir = text.direction_out()
                     elif "Accepting" in item.data.web_show_str:
                         cdir = text.direction_in()
-                self.conn_dir[item.data.conn_id] = cdir
-                self.conn_log_lines[item.data.conn_id] = 0   # line counter
-                self.conn_xfer_bytes[item.data.conn_id] = 0  # byte counter
+                self.conn_dir[id] = cdir
+                self.conn_log_lines[id] = 0   # line counter
+                self.conn_xfer_bytes[id] = 0  # byte counter
+                self.conn_open_time[id] = item
             # inbound open handling
             if item.data.name == "open" and item.data.direction == text.direction_in():
                 if item.data.conn_id in self.conn_peer:
                     sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (
-                    self.fn, item.data.conn_id))
-                self.conn_peer[item.data.conn_id] = item.data.conn_peer
-                self.conn_peer_display[item.data.conn_id] = comn.shorteners.short_peer_names.translate(
+                    self.fn, id))
+                self.conn_peer[id] = item.data.conn_peer
+                self.conn_peer_display[id] = comn.shorteners.short_peer_names.translate(
                     item.data.conn_peer, True)
+            # close monitor
+            if item.data.name == "close":
+                self.conn_close_time[id] = item
             # connection log-line count
-            self.conn_log_lines[item.data.conn_id] += 1
+            self.conn_log_lines[id] += 1
             # transfer byte count
             if item.data.name == "transfer":
-                self.conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
+                self.conn_xfer_bytes[id] += int(item.data.transfer_size)
         self.conn_list = sorted(self.conn_list)
 
     def conn_id(self, conn_num):
@@ -181,6 +188,20 @@ def which_router_tod(router_list, at_time):
         if at_time < router_list[i].restart_rec.datetime:
             return (router_list[i-1], i-1)
     return (router_list[-1], len(router_list)-1)
+
+def which_router_id_tod(routers, id, at_time):
+    '''
+    Find a router by container_name and time of day
+    :param routers: a list of router instance lists
+    :param id: the container name
+    :param at_time: datetime of interest
+    :return: the router that had that container name at that time; None if not found
+    '''
+    for routerlist in routers:
+        if routerlist[0].container_name == id:
+            return which_router_tod(routerlist, at_time)
+    return None
+
 
 
 if __name__ == "__main__":

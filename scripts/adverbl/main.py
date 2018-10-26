@@ -43,6 +43,7 @@ import amqp_detail
 import common
 import nicknamer
 import parser
+import router
 import text
 
 
@@ -163,55 +164,31 @@ def main_except(argv):
     #
     # # generate connection details and per-connection-session-link relationships
     # comn.all_details = AllDetails(tree, comn)
-    #
-    # # generate router-to-router connection peer relationships
-    # peer_list = []
-    # STRATEGY_1 = False
-    # STRATEGY_2 = True
-    #
-    # # Strategy 1 before Open holds connid field:
-    # # search for short names of links where the link name
-    # # is passed back and forth between routers
-    # if STRATEGY_1:
-    #     if comn.shorteners.short_link_names.len() > 0:
-    #         for i in range(0, comn.shorteners.short_link_names.len()):
-    #             sname = comn.shorteners.short_link_names.shortname(i)
-    #             cand = []
-    #             for plf in tree:
-    #                 if plf.data.name == "attach" and plf.data.link_short_name == sname:
-    #                     peer = comn.conn_peers.get(plf.data.conn_id, "")
-    #                     if len(peer) > 0:
-    #                         cand.append(plf.data.conn_id)
-    #             if len(cand) == 4:
-    #                 if (cand[0] == cand[3] and cand[1] == cand[2]) and (not cand[0] == cand[1]):
-    #                     hit = sorted((cand[0], cand[1]))
-    #                     if not hit in peer_list:
-    #                         peer_list.append( hit )
-    #
-    # # Strategy 2 is to find conn-id in Open frames:
-    # if STRATEGY_2:
-    #     for plf in tree:
-    #         if plf.data.name == "open" and plf.data.direction_is_in():
-    #             cid = plf.data.conn_id     # the router that generated this log file
-    #             if "properties" in plf.data.described_type.dict:
-    #                 peer_conn = plf.data.described_type.dict["properties"].get(':"qd.conn-id"', "") # router that sent the open
-    #                 if not peer_conn == "" and not plf.data.conn_peer == "":
-    #                     pid_peer = plf.data.conn_peer.strip('\"')
-    #                     pid = comn.router_prefix_by_id.get(pid_peer, "")
-    #                     if not pid == "":
-    #                         pid = pid + "_" + peer_conn
-    #                         hit = sorted((cid, pid))
-    #                         if not hit in peer_list:
-    #                             peer_list.append( hit )
-    #
-    #
-    # for (key, val) in peer_list:
-    #     if key in comn.conn_peers_connid:
-    #         sys.exit('key val messed up')
-    #     if val in comn.conn_peers_connid:
-    #         sys.exit('key val messed up')
-    #     comn.conn_peers_connid[key] = val
-    #     comn.conn_peers_connid[val] = key
+
+    # generate router-to-router connection peer relationships
+    peer_list = []
+    for plf in tree:
+        if plf.data.name == "open" and plf.data.direction_is_in():
+            cid = plf.data.conn_id     # the router that generated this log file
+            if "properties" in plf.data.described_type.dict:
+                peer_conn = plf.data.described_type.dict["properties"].get(':"qd.conn-id"', "") # router that sent the open
+                if not peer_conn == "" and not plf.data.conn_peer == "":
+                    pid_peer = plf.data.conn_peer.strip('\"')
+                    rtr, rtridx = router.which_router_id_tod(comn.routers, pid_peer, plf.datetime)
+                    if rtr is not None:
+                        pid = rtr.conn_id(peer_conn)
+                        hit = sorted((cid, pid))
+                        if not hit in peer_list:
+                            peer_list.append( hit )
+
+
+    for (key, val) in peer_list:
+        if key in comn.conn_peers_connid:
+            sys.exit('key val messed up')
+        if val in comn.conn_peers_connid:
+            sys.exit('key val messed up')
+        comn.conn_peers_connid[key] = val
+        comn.conn_peers_connid[val] = key
 
     #
     # Start producing the output stream
@@ -319,8 +296,9 @@ def main_except(argv):
     print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
     print("</p>")
 
+    print("<h3>Connections by ConnectionId</h3>")
     print("<table><tr> <th rowspan=\"2\">View</th> <th colspan=\"2\">Router</th> <th rowspan=\"2\">Dir</th> <th colspan=\"2\">Peer</th> <th rowspan=\"2\">Log lines</th> "
-          "<th rowspan=\"2\">N links</th><th rowspan=\"2\">Transfer bytes</th> <th rowspan=\"2\">AMQP errors</th></tr>")
+          "<th rowspan=\"2\">N links</th><th rowspan=\"2\">Transfer bytes</th> <th rowspan=\"2\">AMQP errors</th> <th rowspan=\"2\">Open time</th> <th rowspan=\"2\">Close time</th></tr>")
     print("<tr> <th>container</th> <th>connid</th> <th>connid</th> <th>container</th></tr>")
 
     tConn = 0
@@ -335,22 +313,58 @@ def main_except(argv):
                 tConn += 1
                 id = rtr.conn_id(conn) # this router connid
                 peer = rtr.conn_peer_display.get(id, "") # peer container id
-                peerconnid = "PEERCONNID" # TODO gbls.conn_peers_connid.get(id, "")
+                peerconnid = comn.conn_peers_connid.get(id, "")
                 n_links = 0 # TODO gbls.all_details.links_in_connection(id)
                 # tLinks += n_links
                 errs = 0 # errs = sum(1 for plf in gbls.conn_to_frame_map[id] if plf.data.amqp_error)
                 #tErrs += errs
+                stime = rtr.conn_open_time.get(id, text.nbsp())
+                if stime != text.nbsp():
+                    stime = stime.datetime
+                etime = rtr.conn_close_time.get(id, text.nbsp())
+                if etime != text.nbsp():
+                    etime = etime.datetime
                 print("<tr>")
                 print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
                 print("checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\"> </td>" % (id))
                 print("<td>%s</td><td><a href=\"#cd_%s\">%s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
-                      "<td>%d</td><td>%s</td><td>%d</td></tr>" %
-                      (rid, id, id, rtr.conn_dir[id], peerconnid, peer, rtr.conn_log_lines[id], n_links, rtr.conn_xfer_bytes[id], errs))
+                      "<td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td></tr>" %
+                      (rid, id, id, rtr.conn_dir[id], peerconnid, peer, rtr.conn_log_lines[id], n_links,
+                       rtr.conn_xfer_bytes[id], errs, stime, etime))
             tLines += rtr.conn_log_lines[id]
             tBytes += rtr.conn_xfer_bytes[id]
     print("<td>Total</td><td>%d</td><td> </td><td> </td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
           (tConn, tLines, tLinks, tBytes, tErrs))
+    print("</table>")
 
+    print("<h3>Router Restart and Connection chronology</h3>")
+
+    cl = []
+    for rtrlist in comn.routers:
+        for rtr in rtrlist:
+            rid = rtr.container_name
+            cl.append( common.RestartRec(rtr.iname, rtr, "restart", rtr.restart_rec.datetime) )
+            for conn in rtr.conn_list:
+                id = rtr.conn_id(conn)
+                if id in rtr.conn_open_time:
+                    cl.append(common.RestartRec(id, rtr, "open", rtr.conn_open_time[id].datetime))
+                if id in rtr.conn_close_time:
+                    cl.append(common.RestartRec(id, rtr, "close", rtr.conn_close_time[id].datetime))
+    cl = sorted(cl, key=lambda lfl: lfl.datetime)
+
+    print("<table><tr> <th>Time</th> <th>Id</th> <th>Event</th> <th>container</th> <th>connid</th> <th>Dir</th> <th>connid</th> <th>container</th></tr>")
+    for c in cl:
+        if c.event == "restart":
+            rid = c.router.container_name
+            print("<tr><td>%s</td> <td>%s</td> <td><span style=\"background-color:yellow\">%s</span></td><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> </tr>" %
+                  (c.datetime, c.id, c.event, rid, "", "", "", ""))
+        else:
+            rid = c.router.container_name
+            cdir = c.router.conn_dir[c.id]
+            peer = c.router.conn_peer_display.get(c.id, "")  # peer container id
+            peerconnid = comn.conn_peers_connid.get(c.id, "")
+            print("<tr><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> </tr>" %
+                  (c.datetime, c.id, c.event, rid, c.id, cdir, peerconnid, peer))
     print("</table>")
     print("<hr>")
 
@@ -456,7 +470,7 @@ def main_except(argv):
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, text.lozenge(), text.nbsp())
         rid =  "RID" # gbls.router_display_by_prefix[plf.prefix]
-        peerconnid = "PEERCONNID" # ""[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
+        peerconnid = "[%s]" % comn.conn_peers_connid.get(plf.data.conn_id, "")
         peer = "PEER" #gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
         print(loz, plf.datetime, ("%s#%d" % (plf.prefixi, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
               plf.data.direction, peerconnid, peer,

@@ -807,13 +807,13 @@ class ParsedLogLine(object):
             self.extract_facts()
 
 
-def parse_log_file(fn, log_index, common):
+def parse_log_file(fn, log_index, comn):
     '''
     Given a file name, return an array of Routers that hold the parsed lines.
     Lines that don't parse are identified on stderr and then discarded.
     :param fn: file name
     :param log_index: router id 0 for 'A', 1 for 'B', ...
-    :param common: common data
+    :param comn: common data
     :return: list of Routers
     '''
     instance = 0
@@ -850,7 +850,7 @@ def parse_log_file(fn, log_index, common):
                 search_for_in_progress = False
                 rtr.container_name = line[(line.find(key2) + len(key2)):].strip().split()[0]
             elif key3 in line:
-                pl = ParsedLogLine(log_index, instance, lineno, line, common)
+                pl = ParsedLogLine(log_index, instance, lineno, line, comn)
                 if pl is not None:
                     if pl.data.is_router_ls:
                         rtr.router_ls.append(pl)
@@ -858,7 +858,7 @@ def parse_log_file(fn, log_index, common):
                 rtr.version = line[(line.find(key4) + len(key4)):].strip().split()[0]
             elif "[" in line and "]" in line:
                 try:
-                    pl = ParsedLogLine(log_index, instance, lineno, line, common)
+                    pl = ParsedLogLine(log_index, instance, lineno, line, comn)
                     if pl is not None:
                         rtr.lines.append(pl)
                 except ValueError as ve:
