@@ -85,12 +85,8 @@ def main_except(argv):
     if len(sys.argv) < 2:
         sys.exit('Usage: %s log-file-name [log-file-name ...]' % sys.argv[0])
 
+    # Instantiate a common block
     comn = common.Common()
-
-    # connection peers
-    # key=decorated connection name 'A0_3'
-    conn_log_lines = {}     # val = count of log lines
-    conn_xfer_bytes = {}    # val = transfer byte count
 
     # process the log files and add the results to router_array
     for log_i in range(0, len(sys.argv)-1):
@@ -109,20 +105,23 @@ def main_except(argv):
 
         # marshall facts about the run
         for rtr in rtrs:
-            rtr.get_connection_facts()
+            rtr.discover_connection_facts(comn)
 
-    # create trees to hold list of all log lines and link state lines sorted by time
-    tree = []
-    ls_tree = []
+    # Create lists of various things sorted by time
+    tree = []     # log line
+    ls_tree = []  # link state lines
+    rr_tree = []  # restart records
     for rtrlist in comn.routers:
         for rtr in rtrlist:
             tree += rtr.lines
             ls_tree += rtr.router_ls
+            rr_tree.append(rtr.restart_rec)
     tree = sorted(tree, key=lambda lfl: lfl.datetime)
     ls_tree = sorted(ls_tree, key=lambda lfl: lfl.datetime)
+    rr_tree = sorted(rr_tree, key=lambda lfl: lfl.datetime)
 
-    # back-propagate a router name/version to each list's router0.
-    # complain if container name or version changes between runs
+    # Back-propagate a router name/version to each list's router0.
+    # Complain if container name or version changes between instances.
     for fi in range(comn.n_logs):
         rtrlist = comn.routers[fi]
         if len(rtrlist) > 1:
@@ -283,15 +282,34 @@ def main_except(argv):
     # file(s) included in this doc
     print("<a name=\"c_logfiles\"></a>")
     print("<h3>Log files</h3>")
-    print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Log file path</th></tr>")
+    print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> "
+          "<th>Instances</th> <th>Log file path</th></tr>")
     for i in range(comn.n_logs):
         rtrlist = comn.routers[i]
-        print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-              (common.log_letter_of(i), rtrlist[0].container_name, rtrlist[0].version, os.path.abspath(comn.log_fns[i])))
+        print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+              (common.log_letter_of(i), rtrlist[0].container_name, rtrlist[0].version,
+               str(len(rtrlist)), os.path.abspath(comn.log_fns[i])))
     print("</table>")
     print("<hr>")
 
-    # print the connection peer table
+    # reboot chronology
+    print("<a name=\"c_rtrinstances\"></a>")
+    print("<h3>Router Reboot Chronology</h3>")
+    print("<table><tr><th>Log</th> <th>Time</th> <th>Container name</th>  ")
+    for rr in rr_tree:
+        print("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" %
+              (rr.router.iname, rr.datetime, rr.router.container_name))
+    print("</table>")
+    print("<hr>")
+
+    # print the connection peer tables
+    #
+    # +------+--------------------+-----+--------------------+-------+-------+----------+--------+
+    # | View |       Router       | Dir |       Peer         | Log   | N     | Transfer | AMQP   |
+    # |      +-----------+--------+     +--------+-----------+ lines | links | bytes    | errors |
+    # |      | container | connid |     | connid | container |       |       |          |        |
+    # +------+-----------+--------+-----+--------+-----------+-------+-------+----------+--------+
+
     print("<a name=\"c_connections\"></a>")
     print("<h3>Connections</h3>")
 
@@ -301,50 +319,37 @@ def main_except(argv):
     print("<button onclick=\"javascript:toggle_all()\">Toggle All</button>")
     print("</p>")
 
-    # +------+--------------------+-----+--------------------+-------+-------+----------+--------+
-    # | View |       Router       | Dir |       Peer         | Log   | N     | Transfer | AMQP   |
-    # |      +-----------+--------+     +--------+-----------+ lines | links | bytes    | errors |
-    # |      | container | connid |     | connid | container |       |       |          |        |
-    # +------+-----------+--------+-----+--------+-----------+-------+-------+----------+--------+
-
     print("<table><tr> <th rowspan=\"2\">View</th> <th colspan=\"2\">Router</th> <th rowspan=\"2\">Dir</th> <th colspan=\"2\">Peer</th> <th rowspan=\"2\">Log lines</th> "
           "<th rowspan=\"2\">N links</th><th rowspan=\"2\">Transfer bytes</th> <th rowspan=\"2\">AMQP errors</th></tr>")
     print("<tr> <th>container</th> <th>connid</th> <th>connid</th> <th>container</th></tr>")
 
+    tConn = 0
+    tLines = 0
+    tBytes = 0
+    tErrs = 0
+    tLinks = 0
     for rtrlist in comn.routers:
         for rtr in rtrlist:
+            rid = rtr.container_name
             for conn in rtr.conn_list:
-                print("<tr><td>%s</td></tr>" % (rtr.conn_id(conn)))
-
-    #
-    #
-    # tConn = 0
-    # tLines = 0
-    # tBytes = 0
-    # tErrs = 0
-    # tLinks = 0
-    # for i in range(gbls.n_logs):
-    #     conn_list = gbls.conn_lists[i]
-    #     for conn in conn_list:
-    #         tConn += 1
-    #         rid = gbls.router_ids[i]    # this router container id
-    #         id = gbls.conn_id_of(gbls.log_letter_of(i), conn) # this router connid
-    #         peer = gbls.conn_peers_popup.get(id, "") # peer container id
-    #         peerconnid = gbls.conn_peers_connid.get(id, "")
-    #         n_links = gbls.all_details.links_in_connection(id)
-    #         tLinks += n_links
-    #         errs = sum(1 for plf in gbls.conn_to_frame_map[id] if plf.data.amqp_error)
-    #         tErrs += errs
-    #         print("<tr>")
-    #         print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
-    #         print("checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\"> </td>" % (id))
-    #
-    #         print("<td>%s</td><td><a href=\"#cd_%s\">%s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%s</td><td>%d</td></tr>" %
-    #               (rid, id, id, gbls.conn_dirs[id], peerconnid, peer, conn_log_lines[id], n_links, conn_xfer_bytes[id], errs))
-    #         tLines += conn_log_lines[id]
-    #         tBytes += conn_xfer_bytes[id]
-    # print("<td>Total</td><td>%d</td><td> </td><td> </td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
-    #       (tConn, tLines, tLinks, tBytes, tErrs))
+                tConn += 1
+                id = rtr.conn_id(conn) # this router connid
+                peer = rtr.conn_peer_display.get(id, "") # peer container id
+                peerconnid = "PEERCONNID" # TODO gbls.conn_peers_connid.get(id, "")
+                n_links = 0 # TODO gbls.all_details.links_in_connection(id)
+                # tLinks += n_links
+                errs = 0 # errs = sum(1 for plf in gbls.conn_to_frame_map[id] if plf.data.amqp_error)
+                #tErrs += errs
+                print("<tr>")
+                print("<td> <input type=\"checkbox\" id=\"cb_sel_%s\" " % id)
+                print("checked=\"true\" onclick=\"javascript:show_if_cb_sel_%s()\"> </td>" % (id))
+                print("<td>%s</td><td><a href=\"#cd_%s\">%s</a></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>"
+                      "<td>%d</td><td>%s</td><td>%d</td></tr>" %
+                      (rid, id, id, rtr.conn_dir[id], peerconnid, peer, rtr.conn_log_lines[id], n_links, rtr.conn_xfer_bytes[id], errs))
+            tLines += rtr.conn_log_lines[id]
+            tBytes += rtr.conn_xfer_bytes[id]
+    print("<td>Total</td><td>%d</td><td> </td><td> </td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
+          (tConn, tLines, tLinks, tBytes, tErrs))
 
     print("</table>")
     print("<hr>")

@@ -657,7 +657,7 @@ class ParsedLogLine(object):
          3. Find (SERVER) or (POLICY). If absent then raise to reject message.
          4. If connection number in square brackets '[2]' is missing then raise.
          5. Extract connection number; save in data.conn_num
-         6. Create decorated data.conn_id "A-2"
+         6. Create decorated data.conn_id "A0_2"
          7. Extract data.channel if present. Raise if malformed.
          8. Create a web_show_str for lines that may not parse any further. Like policy lines.
          9. Extract the direction arrows
@@ -745,7 +745,7 @@ class ParsedLogLine(object):
         self.line = self.line[ste + 1:]
 
         # create decorated connection id
-        self.data.conn_id = common.log_letter_of(self.index) + "_" + self.data.conn_num
+        self.data.conn_id = self.prefixi + "_" + self.data.conn_num
 
         # get the session (channel) number
         if self.line.startswith(':'):
@@ -838,17 +838,16 @@ def parse_log_file(fn, log_index, common):
                     rtr = router.Router(log_index, instance)
                     rtrs.append(rtr)
                     search_for_in_progress = False
-                    rtr.restart_rec = router.RestartRecord(log_index, line, lineno + 1)
+                    rtr.restart_rec = router.RestartRecord(rtr, line, lineno + 1)
             lineno += 1
             if key2 in line:
                 # This line closes the current router, if any, and opens a new one
                 if rtr is not None:
                     instance += 1
-                rtr = router.Router(log_index, instance)
+                rtr = router.Router(fn, log_index, instance)
                 rtrs.append(rtr)
-                rtr.restart_rec = router.RestartRecord(log_index, line, lineno)
+                rtr.restart_rec = router.RestartRecord(rtr, line, lineno)
                 search_for_in_progress = False
-                # extract container name
                 rtr.container_name = line[(line.find(key2) + len(key2)):].strip().split()[0]
             elif key3 in line:
                 pl = ParsedLogLine(log_index, instance, lineno, line, common)
@@ -903,13 +902,13 @@ if __name__ == "__main__":
     t_in_1 = datetime.strptime('2018-10-15 10:59:07.584498', '%Y-%m-%d %H:%M:%S.%f')
     t_af_1 = datetime.strptime('2019-10-15 10:59:07.584498', '%Y-%m-%d %H:%M:%S.%f')
 
-    rtr = router.which_router_tod(routers, t_b4_0)
-    assert rtr is routers[0]
-    rtr = router.which_router_tod(routers, t_in_0)
-    assert rtr is routers[0]
-    rtr = router.which_router_tod(routers, t_in_1)
-    assert rtr is routers[1]
-    rtr = router.which_router_tod(routers, t_af_1)
-    assert rtr is routers[1]
+    rtr, idx = router.which_router_tod(routers, t_b4_0)
+    assert rtr is routers[0] and idx == 0
+    rtr, idx = router.which_router_tod(routers, t_in_0)
+    assert rtr is routers[0] and idx == 0
+    rtr, idx = router.which_router_tod(routers, t_in_1)
+    assert rtr is routers[1] and idx == 1
+    rtr, idx = router.which_router_tod(routers, t_af_1)
+    assert rtr is routers[1] and idx == 1
 
     pass

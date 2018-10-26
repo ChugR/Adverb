@@ -43,8 +43,8 @@ import nicknamer
 import text
 
 class RestartRecord():
-    def __init__(self, _log_index, _line, _lineno):
-        self.log_index = _log_index
+    def __init__(self, _router, _line, _lineno):
+        self.router = _router
         self.line = _line
         self.lineno = _lineno
         try:
@@ -53,14 +53,18 @@ class RestartRecord():
             self.datetime = datetime.datetime(1970, 1, 1)
 
     def __repr__(self):
-        return "%d new instance start %s #%d" % (self.log_index, self.datetime, self.lineno)
+        return "%d instance %d start %s #%d" % (self.router.log_index, self.router.instance,
+                                                self.datetime, self.lineno)
 
 class Router():
     '''A single dispatch boot-and-run instance from a log file'''
 
-    def __init__(self, _log_index, _instance):
+    def __init__(self, _fn, _log_index, _instance):
+        self.fn = _fn                 # log file name
         self.log_index = _log_index   # 0=A, 1=B, ...
         self.instance = _instance     # log file instance of router
+        self.iletter = common.log_letter_of(self.log_index)  # A
+        self.iname = self.iletter + str(self.instance)       # A0
 
         # discovered Container Name
         self.container_name = None
@@ -77,6 +81,12 @@ class Router():
         # conn_list - List of connections discovered in log lines
         # Sorted in ascending order and not necessarily in packed sequence.
         self.conn_list = []
+
+        # conn_log_lines - count of log lines per connection
+        self.conn_log_lines = {}
+
+        # conn_transfer_bytes - count of bytes transfered over this connection
+        self.conn_xfer_bytes = {}
 
         # conn_peer - peer container long name
         #   key= connection id '1', '2'
@@ -110,7 +120,18 @@ class Router():
         self.router_ls = []
 
 
-    def get_connection_facts(self):
+    def discover_connection_facts(self, comn):
+        '''
+        Discover all the connections in this router-instance log
+        For each connection:
+         * determine connection direction
+         * discover name of peer container
+         * generate html to use to display the peer nickname
+         * count log lines
+         * count transfer bytes
+        :param comn:
+        :return:
+        '''
         for item in self.lines:
             conn_num = int(item.data.conn_num)
             if conn_num not in self.conn_list:
@@ -124,29 +145,25 @@ class Router():
                     elif "Accepting" in item.data.web_show_str:
                         cdir = text.direction_in()
                 self.conn_dir[item.data.conn_id] = cdir
-            #     # TODO FIXME
-            #     # conn_log_lines[item.data.conn_id] = 0   # line counter TODO
-            #     # conn_xfer_bytes[item.data.conn_id] = 0  # byte counter TODO
-            #     # inbound open handling
-            # if item.data.name == "open" and item.data.direction == item.data.direction_in():
-            #     if item.data.conn_id in self.conn_peers:
-            #         sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (
-            #         arg_log_file, item.data.conn_id))
-            #     comn.conn_peers[item.data.conn_id] = item.data.conn_peer
-            #     comn.conn_peers_popup[item.data.conn_id] = comn.shorteners.short_peer_names.translate(
-            #         item.data.conn_peer, True)
-            #     # per-log-line count
-            # conn_log_lines[item.data.conn_id] += 1
-            # # transfer byte count
-            # if item.data.name == "transfer":
-            #     conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
+                self.conn_log_lines[item.data.conn_id] = 0   # line counter
+                self.conn_xfer_bytes[item.data.conn_id] = 0  # byte counter
+            # inbound open handling
+            if item.data.name == "open" and item.data.direction == text.direction_in():
+                if item.data.conn_id in self.conn_peer:
+                    sys.exit('ERROR: file: %s connection %s has multiple connection peers' % (
+                    self.fn, item.data.conn_id))
+                self.conn_peer[item.data.conn_id] = item.data.conn_peer
+                self.conn_peer_display[item.data.conn_id] = comn.shorteners.short_peer_names.translate(
+                    item.data.conn_peer, True)
+            # connection log-line count
+            self.conn_log_lines[item.data.conn_id] += 1
+            # transfer byte count
+            if item.data.name == "transfer":
+                self.conn_xfer_bytes[item.data.conn_id] += int(item.data.transfer_size)
         self.conn_list = sorted(self.conn_list)
 
     def conn_id(self, conn_num):
-        t1 = common.log_letter_of(self.log_index)
-        t2 = str(self.instance)
-        t3 = str(conn_num)
-        return t1 + t2 + "_" + t3
+        return self.iname + "_" + str(conn_num)
 
 
 def which_router_tod(router_list, at_time):
@@ -154,16 +171,16 @@ def which_router_tod(router_list, at_time):
     Find a router in a list based on time of day
     :param router_list: a list of Router objects
     :param at_time: the datetime record identifying the router
-    :return: a router from the list or None
+    :return: tuple: (a router from the list or None, router index)
     '''
     if len(router_list) == 0:
-        return None
+        return (None, 0)
     if len(router_list) == 1:
-        return router_list[0]
+        return (router_list[0], 0)
     for i in range(1, len(router_list)):
         if at_time < router_list[i].restart_rec.datetime:
-            return router_list[i-1]
-    return router_list[-1]
+            return (router_list[i-1], i-1)
+    return (router_list[-1], len(router_list)-1)
 
 
 if __name__ == "__main__":
