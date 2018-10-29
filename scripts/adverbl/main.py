@@ -100,8 +100,6 @@ def main_except(argv):
 
         # parse the log file
         rtrs = parser.parse_log_file(arg_log_file, log_i, comn)
-        if len(rtrs) == 0:
-            sys.exit('WARNING: log file %s has no Adverbl data!' % arg_log_file)
         comn.routers.append(rtrs)
 
         # marshall facts about the run
@@ -263,9 +261,14 @@ def main_except(argv):
           "<th>Instances</th> <th>Log file path</th></tr>")
     for i in range(comn.n_logs):
         rtrlist = comn.routers[i]
-        print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-              (common.log_letter_of(i), rtrlist[0].container_name, rtrlist[0].version,
-               str(len(rtrlist)), os.path.abspath(comn.log_fns[i])))
+        if len(rtrlist) > 0:
+            print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+                  (common.log_letter_of(i), rtrlist[0].container_name, rtrlist[0].version,
+                   str(len(rtrlist)), os.path.abspath(comn.log_fns[i])))
+        else:
+            print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+                  (common.log_letter_of(i), text.nbsp(), text.nbsp(),
+                   str(len(rtrlist)), os.path.abspath(comn.log_fns[i])))
     print("</table>")
     print("<hr>")
 
