@@ -27,6 +27,7 @@ import sys
 import traceback
 
 import common
+import text
 
 '''
 Given a map of all connections with lists of the associated frames
@@ -286,19 +287,6 @@ class LinkDetail():
 class AllDetails():
 #
 #
-    def lozenge(self):
-        '''
-        :return: HTML document lozenge character
-        '''
-        return "&#9674;"
-
-
-    def nbsp(self):
-        '''
-        :return: HTML Non-breaking space
-        '''
-        return "&#160;"
-
     def format_errors(self, n_errors):
         return ("<span style=\"background-color:yellow\">%d</span>" % n_errors) if n_errors > 0 else ""
 
@@ -407,14 +395,14 @@ class AllDetails():
                             result += ", sndr: absent"
         return result
 
-    def __init__(self, _tree, _globals):
+    def __init__(self, _tree, _common):
         self.tree = _tree
-        self.gbls = _globals
+        self.comn = _common
 
-        for id in self.gbls.all_conn_names:
-            self.gbls.conn_details_map[id] = ConnectionDetail(id)
-            conn_details = self.gbls.conn_details_map[id]
-            conn_frames = self.gbls.conn_to_frame_map[id]
+        for id in self.comn.all_conn_names:
+            self.comn.conn_details_map[id] = ConnectionDetail(id)
+            conn_details = self.comn.conn_details_map[id]
+            conn_frames = self.comn.conn_to_frame_map[id]
             for plf in conn_frames:
                 pname = plf.data.name
                 if plf.data.amqp_error:
@@ -510,8 +498,8 @@ class AllDetails():
                             nl.amqp_errors += 1
                         nl.frame_list.append(plf)
         # identify and index dispositions
-        for id in self.gbls.all_conn_names:
-            conn_detail = self.gbls.conn_details_map[id]
+        for id in self.comn.all_conn_names:
+            conn_detail = self.comn.conn_details_map[id]
             for sess in conn_detail.session_list:
                 # for each disposition add state to disposition_map
                 for splf in sess.session_frame_list:
@@ -528,16 +516,16 @@ class AllDetails():
                             sdispmap[did] = splf
 
     def show_html(self):
-        for id in self.gbls.all_conn_names:
-            conn_detail = self.gbls.conn_details_map[id]
-            conn_frames = self.gbls.conn_to_frame_map[id]
+        for id in self.comn.all_conn_names:
+            conn_detail = self.comn.conn_details_map[id]
+            conn_frames = self.comn.conn_to_frame_map[id]
             print("<a name=\"cd_%s\"></a>" % id)
             # This lozenge shows/hides the connection's data
             print("<a href=\"javascript:toggle_node('%s_data')\">%s%s</a>" %
-                  (id, self.lozenge(), self.nbsp()))
-            dir = self.gbls.conn_dirs[id] if id in self.gbls.conn_dirs else ""
-            peer = self.gbls.conn_peers_popup.get(id, "")
-            peerconnid = self.gbls.conn_peers_connid.get(id, "")
+                  (id, text.lozenge(), text.nbsp()))
+            dir = self.comn.conn_dirs[id] if id in self.comn.conn_dirs else ""
+            peer = self.comn.conn_peers_popup.get(id, "")
+            peerconnid = self.comn.conn_peers_connid.get(id, "")
             # show the connection title
             print("%s %s %s %s (nFrames=%d) %s<br>" % \
                  (id, dir, peerconnid, peer, len(conn_frames), self.format_errors(conn_detail.amqp_errors)))
@@ -546,7 +534,7 @@ class AllDetails():
 
             # unaccounted frames
             print("<a href=\"javascript:toggle_node('%s_data_unacc')\">%s%s</a>" %
-                  (id, self.lozenge(), self.nbsp()))
+                  (id, text.lozenge(), text.nbsp()))
             # show the connection-level frames
             errs = sum(1 for plf in conn_detail.unaccounted_frame_list if plf.data.amqp_error)
             print("Connection-based entries %s<br>" % self.format_errors(errs))
@@ -559,7 +547,7 @@ class AllDetails():
             for sess in conn_detail.session_list:
                 # show the session toggle and title
                 print("<a href=\"javascript:toggle_node('%s_sess_%s')\">%s%s</a>" %
-                      (id, sess.conn_epoch, self.lozenge(), self.nbsp()))
+                      (id, sess.conn_epoch, text.lozenge(), text.nbsp()))
                 print("Session %s: channel: %s, peer channel: %s; Time: start %s, Counts: frames: %d %s<br>" % \
                 (sess.conn_epoch, sess.channel, sess.peer_chan, sess.time_start, \
                  sess.FrameCount(), self.format_errors(sess.amqp_errors)))
@@ -568,7 +556,7 @@ class AllDetails():
                 # show the session-level frames
                 errs = sum(1 for plf in sess.session_frame_list if plf.data.amqp_error)
                 print("<a href=\"javascript:toggle_node('%s_sess_%s_unacc')\">%s%s</a>" %
-                      (id, sess.conn_epoch, self.lozenge(), self.nbsp()))
+                      (id, sess.conn_epoch, text.lozenge(), text.nbsp()))
                 print("Session-based entries %s<br>" % self.format_errors(errs))
                 print("<div id=\"%s_sess_%s_unacc\" style=\"display:none; margin-bottom: 2px; margin-left: 10px\">" %
                       (id, sess.conn_epoch))

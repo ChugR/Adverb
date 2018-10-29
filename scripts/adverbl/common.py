@@ -49,13 +49,20 @@ class Common():
     routers = []
 
     # ordered list of connection names across all routers
-    # key = full conn_id 'A0_5'
-    # val = full conn_id 'B0_8'
-    # note names[key]=val and names[val]=key mutual reference
     all_conn_names = []
+
+    # connection_to_frame_map
+    conn_to_frame_map = {}
+
+    # conn_details_map -
+    # key=conn_id, val=ConnectionDetail for that connection
+    conn_details_map = {}
 
     # mapping of connected routers by connection id
     # A0_1 is connected to B3_2
+    # key = full conn_id 'A0_5'
+    # val = full conn_id 'B0_8'
+    # note names[key]=val and names[val]=key mutual reference
     conn_peers_connid = {}
 
     # short display name for peer indexed by connection id
@@ -63,6 +70,9 @@ class Common():
     conn_peers_display = {}
 
     shorteners = nicknamer.Shorteners()
+
+    # AMQP domain specific knowledge stored here
+    all_details = None
 
 
 def log_letter_of(idx):

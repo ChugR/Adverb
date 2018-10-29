@@ -145,18 +145,19 @@ def main_except(argv):
         comn.router_display_names.append( comn.shorteners.short_rtr_names.translate(name))
 
 
-    # # populate a list with all connectionIds
-    # # populate a map with key=connectionId, val=[list of associated frames])
-    # for i in range(comn.n_logs):
-    #     for conn in comn.conn_lists[i]:
-    #         id = comn.conn_id_of( comn.log_letter_of(i), conn)
-    #         comn.all_conn_names.append(id)
-    #         comn.conn_to_frame_map[id] = []
-    # for plf in tree:
-    #     comn.conn_to_frame_map[plf.data.conn_id].append(plf)
-    #
-    # # generate connection details and per-connection-session-link relationships
-    # comn.all_details = AllDetails(tree, comn)
+    # populate a list with all connectionIds
+    # populate a map with key=connectionId, val=[list of associated frames])
+    for rtrlist in comn.routers:
+        for rtr in rtrlist:
+            for conn in rtr.conn_list:
+                id = rtr.iname + "_" + str(conn)
+                comn.all_conn_names.append(id)
+                comn.conn_to_frame_map[id] = []
+    for plf in tree:
+        comn.conn_to_frame_map[plf.data.conn_id].append(plf)
+
+    # generate connection details and per-connection-session-link relationships
+    comn.all_details = amqp_detail.AllDetails(tree, comn)
 
     # generate router-to-router connection peer relationships
     peer_list = []
@@ -191,57 +192,57 @@ def main_except(argv):
     #
     print (text.web_page_head())
 
-    # #
-    # # Generate javascript
-    # #
-    # # output the frame show/hide functions into the header
-    # for conn_id, plfs in gbls.conn_to_frame_map.iteritems():
-    #     print("function show_%s() {" % conn_id)
-    #     for plf in plfs:
-    #         print("  javascript:show_node(\'%s\');" % plf.fid)
-    #     print("}")
-    #     print("function hide_%s() {" % conn_id)
-    #     for plf in plfs:
-    #         print("  javascript:hide_node(\'%s\');" % plf.fid)
-    #     print("}")
-    #     # manipulate checkboxes
-    #     print("function show_if_cb_sel_%s() {" % conn_id)
-    #     print("  if (document.getElementById(\"cb_sel_%s\").checked) {" % conn_id)
-    #     print("    javascript:show_%s();" % conn_id)
-    #     print("  } else {")
-    #     print("    javascript:hide_%s();" % conn_id)
-    #     print("  }")
-    #     print("}")
-    #     print("function select_cb_sel_%s() {" % conn_id)
-    #     print("  document.getElementById(\"cb_sel_%s\").checked = true;" % conn_id)
-    #     print("  javascript:show_%s();" % conn_id)
-    #     print("}")
-    #     print("function deselect_cb_sel_%s() {" % conn_id)
-    #     print("  document.getElementById(\"cb_sel_%s\").checked = false;" % conn_id)
-    #     print("  javascript:hide_%s();" % conn_id)
-    #     print("}")
-    #     print("function toggle_cb_sel_%s() {" % conn_id)
-    #     print("  if (document.getElementById(\"cb_sel_%s\").checked) {" % conn_id)
-    #     print("    document.getElementById(\"cb_sel_%s\").checked = false;" % conn_id)
-    #     print("  } else {")
-    #     print("    document.getElementById(\"cb_sel_%s\").checked = true;" % conn_id)
-    #     print("  }")
-    #     print("  javascript:show_if_cb_sel_%s();" % conn_id)
-    #     print("}")
     #
-    # # Select/Deselect/Toggle All Connections functions
-    # print("function select_all() {")
-    # for conn_id, frames_ids in gbls.conn_to_frame_map.iteritems():
-    #     print("  javascript:select_cb_sel_%s();" % conn_id)
-    # print("}")
-    # print("function deselect_all() {")
-    # for conn_id, frames_ids in gbls.conn_to_frame_map.iteritems():
-    #     print("  javascript:deselect_cb_sel_%s();" % conn_id)
-    # print("}")
-    # print("function toggle_all() {")
-    # for conn_id, frames_ids in gbls.conn_to_frame_map.iteritems():
-    #     print("  javascript:toggle_cb_sel_%s();" % conn_id)
-    # print("}")
+    # Generate javascript
+    #
+    # output the frame show/hide functions into the header
+    for conn_id, plfs in comn.conn_to_frame_map.iteritems():
+        print("function show_%s() {" % conn_id)
+        for plf in plfs:
+            print("  javascript:show_node(\'%s\');" % plf.fid)
+        print("}")
+        print("function hide_%s() {" % conn_id)
+        for plf in plfs:
+            print("  javascript:hide_node(\'%s\');" % plf.fid)
+        print("}")
+        # manipulate checkboxes
+        print("function show_if_cb_sel_%s() {" % conn_id)
+        print("  if (document.getElementById(\"cb_sel_%s\").checked) {" % conn_id)
+        print("    javascript:show_%s();" % conn_id)
+        print("  } else {")
+        print("    javascript:hide_%s();" % conn_id)
+        print("  }")
+        print("}")
+        print("function select_cb_sel_%s() {" % conn_id)
+        print("  document.getElementById(\"cb_sel_%s\").checked = true;" % conn_id)
+        print("  javascript:show_%s();" % conn_id)
+        print("}")
+        print("function deselect_cb_sel_%s() {" % conn_id)
+        print("  document.getElementById(\"cb_sel_%s\").checked = false;" % conn_id)
+        print("  javascript:hide_%s();" % conn_id)
+        print("}")
+        print("function toggle_cb_sel_%s() {" % conn_id)
+        print("  if (document.getElementById(\"cb_sel_%s\").checked) {" % conn_id)
+        print("    document.getElementById(\"cb_sel_%s\").checked = false;" % conn_id)
+        print("  } else {")
+        print("    document.getElementById(\"cb_sel_%s\").checked = true;" % conn_id)
+        print("  }")
+        print("  javascript:show_if_cb_sel_%s();" % conn_id)
+        print("}")
+
+    # Select/Deselect/Toggle All Connections functions
+    print("function select_all() {")
+    for conn_id, frames_ids in comn.conn_to_frame_map.iteritems():
+        print("  javascript:select_cb_sel_%s();" % conn_id)
+    print("}")
+    print("function deselect_all() {")
+    for conn_id, frames_ids in comn.conn_to_frame_map.iteritems():
+        print("  javascript:deselect_cb_sel_%s();" % conn_id)
+    print("}")
+    print("function toggle_all() {")
+    for conn_id, frames_ids in comn.conn_to_frame_map.iteritems():
+        print("  javascript:toggle_cb_sel_%s();" % conn_id)
+    print("}")
 
     #
     print("</script>")
