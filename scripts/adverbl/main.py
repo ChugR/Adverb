@@ -275,10 +275,16 @@ def main_except(argv):
     # reboot chronology
     print("<a name=\"c_rtrinstances\"></a>")
     print("<h3>Router Reboot Chronology</h3>")
-    print("<table><tr><th>Log</th> <th>Time</th> <th>Container name</th>  ")
+    print("<table><tr><th>Log</th> <th>Time</th> <th>Container name</th> ")
+    for i in range(len(comn.routers)):
+        print("<td>%s</td>" % common.log_letter_of(i))
+    print("</tr>")
     for rr in rr_tree:
-        print("<tr><td>%s</td><td>%s</td><td>%s</td></tr>" %
+        print("<tr><td>%s</td><td>%s</td><td>%s</td>" %
               (rr.router.iname, rr.datetime, rr.router.container_name))
+        for i in range(len(comn.routers)):
+            print("<td>%s</td> " % (rr.router.iname if i == rr.router.log_index else text.nbsp()))
+        print("</tr>")
     print("</table>")
     print("<hr>")
 
@@ -355,19 +361,30 @@ def main_except(argv):
                     cl.append(common.RestartRec(id, rtr, "close", rtr.conn_close_time[id].datetime))
     cl = sorted(cl, key=lambda lfl: lfl.datetime)
 
-    print("<table><tr> <th>Time</th> <th>Id</th> <th>Event</th> <th>container</th> <th>connid</th> <th>Dir</th> <th>connid</th> <th>container</th></tr>")
+    print("<table><tr> <th>Time</th> <th>Id</th> <th>Event</th> <th>container</th> <th>connid</th> "
+          "<th>Dir</th> <th>connid</th> <th>container</th>")
+    for i in range(len(comn.routers)):
+        print("<td>%s</td>" % common.log_letter_of(i))
+    print("</tr>")
     for c in cl:
         if c.event == "restart":
             rid = c.router.container_name
-            print("<tr><td>%s</td> <td>%s</td> <td><span style=\"background-color:yellow\">%s</span></td><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> </tr>" %
+            print("<tr><td>%s</td> <td>%s</td> <td><span style=\"background-color:yellow\">%s</span></td><td>%s</td> "
+                  "<td>%s</td> <td>%s</td><td>%s</td> <td>%s</td>" %
                   (c.datetime, c.id, c.event, rid, "", "", "", ""))
+            for i in range(len(comn.routers)):
+                print("<td>%s</td> " % (c.id if i == c.router.log_index else text.nbsp()))
+            print("</tr>")
         else:
             rid = c.router.container_name
             cdir = c.router.conn_dir[c.id]
             peer = c.router.conn_peer_display.get(c.id, "")  # peer container id
             peerconnid = comn.conn_peers_connid.get(c.id, "")
-            print("<tr><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> </tr>" %
+            print("<tr><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td> <td>%s</td><td>%s</td> <td>%s</td>" %
                   (c.datetime, c.id, c.event, rid, c.id, cdir, peerconnid, peer))
+            for i in range(len(comn.routers)):
+                print("<td>%s</td> " % (text.nbsp()))
+            print("</tr>")
     print("</table>")
     print("<hr>")
 
