@@ -41,6 +41,9 @@ class Common():
     # len=n_logs
     router_ids = [] # raw long names
 
+    # router display names shortened with popups
+    router_display_names = []
+
     # list of router-instance lists
     # [[A0, A1], [B0], [C0, C1, C2]]
     routers = []
@@ -52,7 +55,12 @@ class Common():
     all_conn_names = []
 
     # mapping of connected routers by connection id
+    # A0_1 is connected to B3_2
     conn_peers_connid = {}
+
+    # short display name for peer indexed by connection id
+    # A0_1 maps to B's container_name nickname
+    conn_peers_display = {}
 
     shorteners = nicknamer.Shorteners()
 
@@ -67,6 +75,17 @@ def log_letter_of(idx):
         sys.exit('ERROR: too many log files')
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[idx]
 
+def index_of_log_letter(letter):
+    '''
+    Return the index 0..25 of the firster letter of the 'letter' string
+    Raise error if out of range
+    :param letter:
+    :return:
+    '''
+    val = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".find(letter[0].upper())
+    if val < 0 or val > 25:
+        raise ValueError("index_of_log_letter Invalid log letter: %s", letter)
+    return val
 
 class RestartRec():
     def __init__(self, _id, _router, _event, _datetime):
@@ -74,3 +93,4 @@ class RestartRec():
         self.router = _router
         self.event = _event
         self.datetime = _datetime
+

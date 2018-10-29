@@ -121,6 +121,7 @@ def main_except(argv):
 
     # Back-propagate a router name/version to each list's router0.
     # Complain if container name or version changes between instances.
+    # Fill in container_id and shortened display_name tables
     for fi in range(comn.n_logs):
         rtrlist = comn.routers[fi]
         if len(rtrlist) > 1:
@@ -139,17 +140,11 @@ def main_except(argv):
                 if  namei != namej:
                     sys.exit('Inconsistent router versions, log file %s, instance %d:%s but instance %d:%s' %
                              (comn.log_fns[fi], i, namei, i+1, namej))
+        name = rtrlist[0].container_name if len(rtrlist) > 0 else ("Unknown_%d" % fi)
+        comn.router_ids.append(name)
+        comn.router_display_names.append( comn.shorteners.short_rtr_names.translate(name))
 
-    # # generate the router name display helper lists
-    # for i in range(comn.n_logs):
-    #     log_letter = comn.log_letter_of(i)
-    #     id = comn.router_ids[i]
-    #     dispname = comn.shorteners.short_rtr_names.translate( id, show_popup=True )
-    #     comn.router_display_names.append( dispname )
-    #     comn.router_ids_by_prefix[log_letter] = id
-    #     comn.router_display_by_prefix[log_letter] = dispname
-    #     comn.router_prefix_by_id[id] = log_letter
-    #
+
     # # populate a list with all connectionIds
     # # populate a map with key=connectionId, val=[list of associated frames])
     # for i in range(comn.n_logs):
@@ -187,7 +182,10 @@ def main_except(argv):
             sys.exit('key val messed up')
         comn.conn_peers_connid[key] = val
         comn.conn_peers_connid[val] = key
-
+        cn_k = comn.router_ids[common.index_of_log_letter(key)]
+        cn_v = comn.router_ids[common.index_of_log_letter(val)]
+        comn.conn_peers_display[key] = comn.shorteners.short_rtr_names.translate(cn_v)
+        comn.conn_peers_display[val] = comn.shorteners.short_rtr_names.translate(cn_k)
     #
     # Start producing the output stream
     #
@@ -489,11 +487,13 @@ def main_except(argv):
         print("<a name=\"%s\"></a>" % plf.fid)
         detailname = plf.fid + "_d"
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, text.lozenge(), text.nbsp())
-        rid =  "RID" # gbls.router_display_by_prefix[plf.prefix]
-        peerconnid = "[%s]" % comn.conn_peers_connid.get(plf.data.conn_id, "")
-        peer = "PEER" #gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+        rtr = plf.router
+        rid =  comn.router_display_names[rtr.log_index]
+
+        peerconnid = "%s" % comn.conn_peers_connid.get(plf.data.conn_id, "")
+        peer = comn.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
         print(loz, plf.datetime, ("%s#%d" % (plf.prefixi, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
-              plf.data.direction, peerconnid, peer,
+              plf.data.direction, ("[%s]" % peerconnid), peer,
               plf.data.web_show_str, plf.data.disposition_display, "<br>")
         print(" <div width=\"100%%\"; "
               "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "

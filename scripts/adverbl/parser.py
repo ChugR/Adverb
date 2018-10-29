@@ -645,7 +645,7 @@ class ParsedLogLine(object):
         return "<a href=\"#%s\">%s</a>" % (self.fid, "%s%d_%s" %
                                            (common.log_letter_of(self.index), self.instance, str(self.lineno)))
 
-    def __init__(self, _log_index, _instance, _lineno, _line, _comn):
+    def __init__(self, _log_index, _instance, _lineno, _line, _comn, _router):
         '''
         Process a naked qpid-dispatch log line
         A log line looks like this:
@@ -670,6 +670,8 @@ class ParsedLogLine(object):
         :param _instance     The router instance
         :param _lineno:
         :param _line:
+        :param _comn:
+        :param _router:
         '''
         if not (ParsedLogLine.server_trace_key in _line or
                 (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line) or # open (not begin, attach)
@@ -681,6 +683,7 @@ class ParsedLogLine(object):
         self.instance = _instance # router instance in log file
         self.lineno = _lineno     # log line number
         self.comn   = _comn
+        self.router = _router
         self.prefixi= common.log_letter_of(self.index) + str(self.instance) # prefix+instance A0
         self.fid = "f_" + self.prefixi + "_" + str(self.lineno)             # frame id A0_100
         self.shorteners = _comn.shorteners # name shorteners
@@ -850,7 +853,7 @@ def parse_log_file(fn, log_index, comn):
                 search_for_in_progress = False
                 rtr.container_name = line[(line.find(key2) + len(key2)):].strip().split()[0]
             elif key3 in line:
-                pl = ParsedLogLine(log_index, instance, lineno, line, comn)
+                pl = ParsedLogLine(log_index, instance, lineno, line, comn, rtr)
                 if pl is not None:
                     if pl.data.is_router_ls:
                         rtr.router_ls.append(pl)
@@ -858,7 +861,7 @@ def parse_log_file(fn, log_index, comn):
                 rtr.version = line[(line.find(key4) + len(key4)):].strip().split()[0]
             elif "[" in line and "]" in line:
                 try:
-                    pl = ParsedLogLine(log_index, instance, lineno, line, comn)
+                    pl = ParsedLogLine(log_index, instance, lineno, line, comn, rtr)
                     if pl is not None:
                         rtr.lines.append(pl)
                 except ValueError as ve:
@@ -885,7 +888,7 @@ if __name__ == "__main__":
     comn = common.Common()
     try:
         for i in range(len(data)):
-            temp = ParsedLogLine(log_index, instance, i, data[i], comn)
+            temp = ParsedLogLine(log_index, instance, i, data[i], comn, None)
             print(temp.datetime, temp.data.conn_id, temp.data.direction, temp.data.web_show_str)
         pass
     except:
