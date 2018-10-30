@@ -507,8 +507,9 @@ class AllDetails():
                             nl.amqp_errors += 1
                         nl.frame_list.append(plf)
         # identify and index dispositions
-        for id in self.comn.all_conn_names:
-            conn_detail = self.comn.conn_details_map[id]
+        for conn in self.rtr.conn_list:
+            id = self.rtr.conn_id(conn)
+            conn_detail = self.conn_details[id]
             for sess in conn_detail.session_list:
                 # for each disposition add state to disposition_map
                 for splf in sess.session_frame_list:

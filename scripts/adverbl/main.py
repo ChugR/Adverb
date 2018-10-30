@@ -501,54 +501,54 @@ def main_except(argv):
         print("</div>")
     print("<hr>")
 
-    # # data traversing network
-    # print("<a name=\"c_messageprogress\"></a>")
-    # print("<h3>Message progress</h3>")
-    # for i in range(0, comn.shorteners.short_data_names.len()):
-    #     sname = comn.shorteners.short_data_names.shortname(i)
-    #     size = 0
-    #     for plf in tree:
-    #         if plf.data.name == "transfer" and plf.transfer_short_name == sname:
-    #             size = plf.data.transfer_size
-    #             break
-    #     print("<a name=\"%s\"></a> <h4>%s (%s)" % (sname, sname, size))
-    #     print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, text.lozenge()))
-    #     print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" %
-    #           ("data_" + sname))
-    #     print(" ",  comn.shorteners.short_data_names.longname(i, True))
-    #     print("</div> </span>")
-    #     print("</h4>")
-    #     print("<table>")
-    #     print("<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId</th> <th>Peer</th> "
-    #           "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
-    #     t0 = None
-    #     tlast = None
-    #     for plf in tree:
-    #         if plf.data.name == "transfer" and plf.transfer_short_name == sname:
-    #             if t0 is None:
-    #                 t0 = plf.datetime
-    #                 tlast = plf.datetime
-    #                 delta = "0.000000"
-    #                 epsed = "0.000000"
-    #             else:
-    #                 delta = time_offset(plf.datetime, tlast)
-    #                 epsed = time_offset(plf.datetime, t0)
-    #                 tlast = plf.datetime
-    #             sepsed = ""
-    #             if not plf.data.final_disposition is None:
-    #                 sepsed = time_offset(plf.data.final_disposition.datetime, t0)
-    #             rid = comn.router_display_by_prefix[plf.prefix]
-    #             peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
-    #             peer = comn.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
-    #             print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
-    #                   "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
-    #                   (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction,
-    #                    peerconnid, peer, delta, epsed,
-    #                    plf.data.disposition_display, sepsed))
-    #     print("</table>")
-    #
-    # print("<hr>")
-    #
+    # data traversing network
+    print("<a name=\"c_messageprogress\"></a>")
+    print("<h3>Message progress</h3>")
+    for i in range(0, comn.shorteners.short_data_names.len()):
+        sname = comn.shorteners.short_data_names.shortname(i)
+        size = 0
+        for plf in tree:
+            if plf.data.name == "transfer" and plf.transfer_short_name == sname:
+                size = plf.data.transfer_size
+                break
+        print("<a name=\"%s\"></a> <h4>%s (%s)" % (sname, sname, size))
+        print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, text.lozenge()))
+        print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" %
+              ("data_" + sname))
+        print(" ",  comn.shorteners.short_data_names.longname(i, True))
+        print("</div> </span>")
+        print("</h4>")
+        print("<table>")
+        print("<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId</th> <th>Peer</th> "
+              "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
+        t0 = None
+        tlast = None
+        for plf in tree:
+            if plf.data.name == "transfer" and plf.transfer_short_name == sname:
+                if t0 is None:
+                    t0 = plf.datetime
+                    tlast = plf.datetime
+                    delta = "0.000000"
+                    epsed = "0.000000"
+                else:
+                    delta = time_offset(plf.datetime, tlast)
+                    epsed = time_offset(plf.datetime, t0)
+                    tlast = plf.datetime
+                sepsed = ""
+                if not plf.data.final_disposition is None:
+                    sepsed = time_offset(plf.data.final_disposition.datetime, t0)
+                rid = plf.router.iname
+                peerconnid = "%s" % comn.conn_peers_connid.get(plf.data.conn_id, "")
+                peer = comn.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
+                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
+                      "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
+                      (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction,
+                       peerconnid, peer, delta, epsed,
+                       plf.data.disposition_display, sepsed))
+        print("</table>")
+
+    print("<hr>")
+
     # # link names traversing network
     # print("<a name=\"c_linkprogress\"></a>")
     # print("<h3>Link name propagation</h3>")
