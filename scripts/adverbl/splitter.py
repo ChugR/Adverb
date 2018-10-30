@@ -29,11 +29,9 @@ import test_data as td
 
 
 class Splitter():
-    '''
-    '''
     @staticmethod
     def split(line):
-        '''
+        """
         Split a log line into fields.
          * allow commas and spaces in quoted strings.
          * split on ', ' and on ' '.
@@ -41,7 +39,7 @@ class Splitter():
          * quoted fields must have both quotes
         :param line:
         :return:
-        '''
+        """
         result = []
         indqs = False
         pending_comma = False
@@ -76,8 +74,8 @@ class Splitter():
             result.append(str(res))
         if indqs:
             raise ValueError("SPLIT ODD QUOTES: %s", line)
-        #print ("SPLIT: line: %s" % line)
-        #print ("SPLIT: flds: %s" % result)
+        # print ("SPLIT: line: %s" % line)
+        # print ("SPLIT: flds: %s" % result)
         return result
 
 
@@ -86,10 +84,10 @@ if __name__ == "__main__":
     try:
         for line in td.TestData().data():
             if not "transfer" in line:
-                print (Splitter.split(line))
-                print ()
+                print(Splitter.split(line))
+                print()
             else:
-                pass # splitter does not split transfers
+                pass  # splitter does not split transfers
         pass
     except:
         traceback.print_exc(file=sys.stdout)

@@ -31,7 +31,6 @@ import traceback
 
 import splitter
 import test_data as td
-import nicknamer
 import common
 import text
 import router
@@ -42,7 +41,7 @@ def colorize_bg(what):
     return what
 
 
-class LogLineData():
+class LogLineData:
 
     def direction_is_in(self):
         return self.direction == text.direction_in()
@@ -53,12 +52,12 @@ class LogLineData():
     def __init__(self):
         self.web_show_str = ""
         self.name = ""
-        self.conn_num = "" # source router's undecorated conn num
-        self.conn_id = "" # decorated routerPrefixLetter'instanceNumber-conn_num
-        self.conn_peer = "" # display name of peer in seen in Open 'A - routerId.Test'
+        self.conn_num = ""  # source router's undecorated conn num
+        self.conn_id = ""  # decorated routerPrefixLetter'instanceNumber-conn_num
+        self.conn_peer = ""  # display name of peer in seen in Open 'A - routerId.Test'
         self.channel = ""  # undecorated number - '0'
-        self.direction = "" # '<-' IN, or '->' OUT, or '--'
-        self.described_type = DescribedType() # DescribedType object
+        self.direction = ""  # '<-' IN, or '->' OUT, or '--'
+        self.described_type = DescribedType()  # DescribedType object
         self.handle = ""  # undecorated number - '1'
         self.delivery_id = ""  # "0"
         self.delivery_tag = ""  # "00:00:00:00"
@@ -82,7 +81,7 @@ class LogLineData():
         self.rcv_settle_mode = ""  # Attach
         self.transfer_data = ""  # protonized transfer data value
         self.transfer_bare = ""  # bare message from transfer_data
-        self.transfer_hdr_annos = "" # header and annotation sections
+        self.transfer_hdr_annos = ""  # header and annotation sections
         self.transfer_size = ""  # size declared by number in parenthesis
         self.transfer_short_name = ""
         self.transfer_settled = False
@@ -91,33 +90,34 @@ class LogLineData():
         self.transfer_aborted = False
         self.link_short_name = ""
         self.link_short_name_popup = ""
-        self.is_policy_trace = False # line is POLICY (trace)
-        self.is_server_info = False # line is SERVER (info)
-        self.is_router_ls = False # line is ROUTER_LS (info)
-        self.fid = "" # Log line (frame) id as used in javascript code
+        self.is_policy_trace = False  # line is POLICY (trace)
+        self.is_server_info = False  # line is SERVER (info)
+        self.is_router_ls = False  # line is ROUTER_LS (info)
+        self.fid = ""  # Log line (frame) id as used in javascript code
         self.amqp_error = False
-        self.link_class = "normal" # attach sees: normal, router, router-data (, management?)
+        self.link_class = "normal"  # attach sees: normal, router, router-data (, management?)
         self.disposition_display = ""
         self.final_disposition = None
 
 
-class DescribedType():
-    '''
+class DescribedType:
+    """
     Given a line like:
         @typename(00) [key1=val1, ...]
     Extract the typename and create a map of the key-val pairs
     May recursively find embedded described types
-    '''
+    """
+
     @staticmethod
     def is_dtype_name(name):
-        '''
+        """
         Return true if the name is a pn_trace described type name
         :param name:
         :return:
-        '''
-        return ( name.startswith ( '@' ) and
-                 '(' in name and
-                 name.endswith ( ')' ) )
+        """
+        return (name.startswith('@') and
+                '(' in name and
+                name.endswith(')'))
 
     @staticmethod
     def get_key_and_val(kvp):
@@ -128,13 +128,13 @@ class DescribedType():
     def dtype_name(name):
         if not DescribedType.is_dtype_name(name):
             raise ValueError("Name '%s' is not a described type name" % name)
-        return name [ 1 : name.find ( '(' ) ]
+        return name[1: name.find('(')]
 
     @staticmethod
     def dtype_number(name):
         if not DescribedType.is_dtype_name(name):
             raise ValueError("Name '%s' is not a described type name" % name)
-        return int ( name [ name.find ( '(' ) + 1 : -1 ] )
+        return int(name[name.find('(') + 1: -1])
 
     def __init__(self):
         self.dict = {}
@@ -147,12 +147,12 @@ class DescribedType():
     def _representation(self):
         return "DescribedType %s( %d ) : %s" % (self.dtype_name, self.dtype_number, self.dict)
 
-    def addFieldToDict(self, fText, expected_key=None):
-        if not '=' in fText:
+    def add_field_to_dict(self, f_text, expected_key=None):
+        if not '=' in f_text:
             raise ValueError("Field does not contain equal sign '%s'" % self.line)
-        if not expected_key is None and not fText.startswith(expected_key):
+        if not expected_key is None and not f_text.startswith(expected_key):
             raise ValueError("Transfer field %s not in order from line: %s" % (expected_key, self.line))
-        key, val = DescribedType.get_key_and_val(fText)
+        key, val = DescribedType.get_key_and_val(f_text)
         if val.endswith(','):
             val = val[:-1]
         self.dict[key] = val
@@ -163,30 +163,30 @@ class DescribedType():
             idx = self.line.rfind(key)
             if not idx == -1:
                 field = self.line[idx:]
-                self.addFieldToDict(field, key)
+                self.add_field_to_dict(field, key)
                 self.line = self.line[:idx].strip()
                 return True
         return False
 
     def parseTransfer(self):
-        '''
+        """
         Figure out the described type fields for the transfer.
         Transfers are handled specially with the ill-formatted binary delivery-tag field
         :return:
-        '''
+        """
         # strip leading '[' and trailing ']'
         if not (self.line.startswith('[') and self.line.endswith(']')):
-            raise ValueError("Described type not delimited with square brackets: '%s'" % line)
+            raise ValueError("Described type not delimited with square brackets: '%s'" % self.line)
         self.line = self.line[1:]
         self.line = self.line[:-1]
 
         # process fields from head
-        fHandle= self.line.split()[0]
-        self.addFieldToDict(fHandle)
+        fHandle = self.line.split()[0]
+        self.add_field_to_dict(fHandle)
         self.line = self.line[(len(fHandle) + 1):]
 
         fDelId = self.line.split()[0]
-        self.addFieldToDict(fDelId)
+        self.add_field_to_dict(fDelId)
         self.line = self.line[(len(fDelId) + 1):]
 
         # process fields from tail
@@ -194,10 +194,10 @@ class DescribedType():
             pass
 
         # the remainder, no matter how unlikely, must be the delivery-tag
-        self.addFieldToDict(self.line, "delivery-tag")
+        self.add_field_to_dict(self.line, "delivery-tag")
 
     def parse_dtype_line(self, _dtype, _line):
-        '''
+        """
         Figure out the fields for the described type.
         The line format is:
 
@@ -207,7 +207,7 @@ class DescribedType():
         :param _dtype: @describedtypename(num)
         :param _line: [key=val [, key=val]...]
         :return:
-        '''
+        """
         self.dtype = _dtype
         self.oline = str(_line)
         self.line = self.oline
@@ -221,54 +221,54 @@ class DescribedType():
             return
 
         # strip leading '[' and trailing ']'
-        if not ( self.line.startswith ( '[' ) and self.line.endswith ( ']' ) ) :
+        if not (self.line.startswith('[') and self.line.endswith(']')):
             raise ValueError("Described type not delimited with square brackets: '%s'" % _line)
         self.line = self.line[1:]
         self.line = self.line[:-1]
 
         # process fields
         fields = splitter.Splitter.split(self.line)
-        while len ( fields ) > 0 and len ( fields [ 0 ] ) >  0:
+        while len(fields) > 0 and len(fields[0]) > 0:
             if not '=' in fields[0]:
                 raise ValueError("Field does not contain equal sign '%s'" % fields[0])
-            key, val = DescribedType.get_key_and_val( fields[0] )
+            key, val = DescribedType.get_key_and_val(fields[0])
             del fields[0]
             if DescribedType.is_dtype_name(val):
                 # recursing to process subtype
                 # pull subtype's data out of fields. The fields list belongs to parent.
                 subfields = []
-                if fields[0] == "[]" :
+                if fields[0] == "[]":
                     # degenerate case of empty subtype closing parent type
                     #  @disposition .. state=@accepted(36) []]
                     subfields.append("[]")
                     del fields[0]
-                else :
-                    while len ( fields ) > 0 :
+                else:
+                    while len(fields) > 0:
                         if fields[0].endswith('],'):
-                            subfields.append( fields[0][:-2] )
-                            subfields.append( ']' )
+                            subfields.append(fields[0][:-2])
+                            subfields.append(']')
                             del fields[0]
                             break
                         if fields[0].endswith(']'):
-                            subfields.append( fields[0][:-1] )
-                            subfields.append( ']' )
+                            subfields.append(fields[0][:-1])
+                            subfields.append(']')
                             del fields[0]
                             break
-                        subfields.append( fields[0] )
+                        subfields.append(fields[0])
                         del fields[0]
 
                 subtype = DescribedType()
                 subtype.parse_dtype_line(val, ' '.join(subfields))
                 self.dict[key] = subtype
-            elif val.startswith( '{' ):
+            elif val.startswith('{'):
                 # handle some embedded map: properties={:product=\"qpid-dispatch-router\", :version=\"1.3.0-SNAPSHOT\"}
                 # pull subtype's data out of fields. The fields list belongs to parent.
                 submap = {}
                 fields.insert(0, val)
-                skey, sval = DescribedType.get_key_and_val( fields[0][1:] )
+                skey, sval = DescribedType.get_key_and_val(fields[0][1:])
                 submap[skey] = sval
                 del fields[0]
-                while len ( fields ) > 0 :
+                while len(fields) > 0:
                     if fields[0].endswith('},'):
                         skey, sval = DescribedType.get_key_and_val(fields[0][:-2])
                         submap[skey] = sval
@@ -287,8 +287,9 @@ class DescribedType():
             else:
                 self.dict[key] = val
 
+
 class ParsedLogLine(object):
-    '''
+    """
     Grind through the log line and record some facts about it.
     * Constructor returns Null if the log line is to be ignored
     * Constructor args:
@@ -297,11 +298,11 @@ class ParsedLogLine(object):
     ** lineno             line number
     ** line               the log line
     ** common             common block object
-    '''
+    """
     server_trace_key = "SERVER (trace) ["
-    server_info_key  = "SERVER (info) ["
+    server_info_key = "SERVER (info) ["
     policy_trace_key = "POLICY (trace) ["
-    router_ls_key    = "ROUTER_LS (info)"
+    router_ls_key = "ROUTER_LS (info)"
     transfer_key = "@transfer(20)"
 
     def sender_settle_mode_of(self, value):
@@ -310,10 +311,9 @@ class ParsedLogLine(object):
         elif value == "1":
             return "settled(1)"
         elif value == "2":
-            return "mixed(2)"   # default
+            return "mixed(2)"  # default
         else:
             return "unknown(%s) % value"
-
 
     def receiver_settle_mode_of(self, value):
         if value == "0":
@@ -369,8 +369,10 @@ class ParsedLogLine(object):
             res.link_short_name = self.shorteners.short_link_names.translate(name, False)
             tmpsrc = self.resdict_value(resdict, "source", None)
             tmptgt = self.resdict_value(resdict, "target", None)
-            res.snd_settle_mode = self.sender_settle_mode_of(resdict["snd-settle-mode"]) if "snd-settle-mode" in resdict else "mixed"
-            res.rcv_settle_mode = self.receiver_settle_mode_of(resdict["rcv-settle-mode"]) if "rcv-settle-mode" in resdict else "first"
+            res.snd_settle_mode = self.sender_settle_mode_of(
+                resdict["snd-settle-mode"]) if "snd-settle-mode" in resdict else "mixed"
+            res.rcv_settle_mode = self.receiver_settle_mode_of(
+                resdict["rcv-settle-mode"]) if "rcv-settle-mode" in resdict else "first"
             caps = ""
             if tmpsrc is not None:
                 res.source = self.resdict_value(tmpsrc.dict, "address", "none")
@@ -389,13 +391,13 @@ class ParsedLogLine(object):
                 res.link_class = 'router-data'
             elif 'qd.router' in caps:
                 res.link_class = 'router'
-            '''
+            """
             TODO:
             res.source = short_endp_names.translate(res.source)
             res.target = short_endp_names.translate(res.target)
             res.snd_settle_mode = extract_name(tmpssm)
             res.rcv_settle_mode = extract_name(tmprsm)
-            '''
+            """
             res.web_show_str = ("<strong>%s</strong> %s %s %s (source: %s, target: %s, class: %s)" %
                                 (res.name, colorize_bg(res.channel_handle), res.role, res.link_short_name_popup,
                                  res.source, res.target, res.link_class))
@@ -636,17 +638,17 @@ class ParsedLogLine(object):
         if "error" in resdict:
             res.amqp_error = True
             res.web_show_str += (" <span style=\"background-color:yellow\">error</span> "
-                        "%s %s" % (resdict["error"].dict["condition"], resdict["error"].dict["description"]))
+                                 "%s %s" % (resdict["error"].dict["condition"], resdict["error"].dict["description"]))
 
     def adverbl_link_to(self):
-        '''
+        """
         :return: html link to the main adverbl data display for this line
-        '''
+        """
         return "<a href=\"#%s\">%s</a>" % (self.fid, "%s%d_%s" %
                                            (common.log_letter_of(self.index), self.instance, str(self.lineno)))
 
     def __init__(self, _log_index, _instance, _lineno, _line, _comn, _router):
-        '''
+        """
         Process a naked qpid-dispatch log line
         A log line looks like this:
           2018-07-20 10:58:40.179187 -0400 SERVER (trace) [2]:0 -> @begin(17) [next-outgoing-id=0, incoming-window=2147483647, outgoing-window=2147483647] (/home/chug/git/qpid-dispatch/src/server.c:106)
@@ -672,25 +674,25 @@ class ParsedLogLine(object):
         :param _line:
         :param _comn:
         :param _router:
-        '''
+        """
         if not (ParsedLogLine.server_trace_key in _line or
-                (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line) or # open (not begin, attach)
+                (ParsedLogLine.policy_trace_key in _line and "lookup_user:" in _line) or  # open (not begin, attach)
                 ParsedLogLine.server_info_key in _line or
                 ParsedLogLine.router_ls_key in _line):
             raise ValueError("Line is not a candidate for parsing")
-        self.oline = _line        # original line
-        self.index = _log_index   # router prefix 0 for A, 1 for B
-        self.instance = _instance # router instance in log file
-        self.lineno = _lineno     # log line number
-        self.comn   = _comn
+        self.oline = _line  # original line
+        self.index = _log_index  # router prefix 0 for A, 1 for B
+        self.instance = _instance  # router instance in log file
+        self.lineno = _lineno  # log line number
+        self.comn = _comn
         self.router = _router
-        self.prefixi= common.log_letter_of(self.index) + str(self.instance) # prefix+instance A0
-        self.fid = "f_" + self.prefixi + "_" + str(self.lineno)             # frame id A0_100
-        self.shorteners = _comn.shorteners # name shorteners
+        self.prefixi = common.log_letter_of(self.index) + str(self.instance)  # prefix+instance A0
+        self.fid = "f_" + self.prefixi + "_" + str(self.lineno)  # frame id A0_100
+        self.shorteners = _comn.shorteners  # name shorteners
 
-        self.line = _line         # working line chopped, trimmed
+        self.line = _line  # working line chopped, trimmed
 
-        self.data = LogLineData() # parsed line fact store
+        self.data = LogLineData()  # parsed line fact store
 
         # strip optional trailing file:line field
         self.line = self.line.rstrip()
@@ -700,7 +702,7 @@ class ParsedLogLine(object):
             idxColon = self.line.rfind(':')
             if not idxOP == -1 and not idxColon == -1:
                 if idxColon > idxOP:
-                    lNumStr = self.line[(idxColon + 1) : (-1)]
+                    lNumStr = self.line[(idxColon + 1): (-1)]
                     try:
                         lnum = int(lNumStr)
                         hasFileLine = True
@@ -758,7 +760,7 @@ class ParsedLogLine(object):
             raise ValueError("space not found after channel number at head of line %s" % (self.line))
         if sti > 0:
             self.data.channel = self.line[:sti]
-        self.line = self.line[sti + 1 :]
+        self.line = self.line[sti + 1:]
         self.line = self.line.lstrip()
 
         # cover for traces that don't get any better
@@ -778,7 +780,7 @@ class ParsedLogLine(object):
         #  @describedtypename(num) [key=val [, key=val ...]]
         # extract descriptor name
         dname = self.line.split()[0]
-        self.line = self.line [ (  len ( dname ) + 1 ) : ]
+        self.line = self.line[(len(dname) + 1):]
 
         # Dispose of the transfer data
         if dname == self.transfer_key:
@@ -789,9 +791,9 @@ class ParsedLogLine(object):
             # aborted transfers may or may not have size/data in the log line
             if not rz is None and len(rz.regs) > 0:
                 splitSt, splitTo = rz.regs[0]
-                self.data.transfer_size = self.line[ splitSt + 3 : splitTo - 3 ]
-                self.data.transfer_data = self.line [ splitTo - 1 : ] # discard (NNN) size field
-                self.line = self.line[ : splitSt + 1 ]
+                self.data.transfer_size = self.line[splitSt + 3: splitTo - 3]
+                self.data.transfer_data = self.line[splitTo - 1:]  # discard (NNN) size field
+                self.line = self.line[: splitSt + 1]
                 # try to isolate the bare message
                 sti = self.data.transfer_data.find(r"\x00Ss")
                 if sti > 0:
@@ -803,7 +805,7 @@ class ParsedLogLine(object):
                 self.data.transfer_size = "0"
                 self.data.transfer_data = "(none)"
 
-        if DescribedType.is_dtype_name ( dname ) :
+        if DescribedType.is_dtype_name(dname):
             self.data.described_type.parse_dtype_line(dname, self.line)
             # data fron incoming line is now parsed out into facts in .data
             # Now cook the data to get useful displays
@@ -811,24 +813,24 @@ class ParsedLogLine(object):
 
 
 def parse_log_file(fn, log_index, comn):
-    '''
+    """
     Given a file name, return an array of Routers that hold the parsed lines.
     Lines that don't parse are identified on stderr and then discarded.
     :param fn: file name
     :param log_index: router id 0 for 'A', 1 for 'B', ...
     :param comn: common data
     :return: list of Routers
-    '''
+    """
     instance = 0
     lineno = 0
     search_for_in_progress = True
     rtrs = []
     rtr = None
-    key1 = "SERVER (trace) ["               # AMQP traffic
+    key1 = "SERVER (trace) ["  # AMQP traffic
     key2 = "SERVER (info) Container Name:"  # Normal 'router is starting' restart discovery line
-    key3 = "ROUTER_LS (info)"               # a log line placed in separate pool of lines
+    key3 = "ROUTER_LS (info)"  # a log line placed in separate pool of lines
     keys = [key1, key3]
-    key4 = "ROUTER (info) Version:"         # router version line
+    key4 = "ROUTER (info) Version:"  # router version line
     with open(fn, 'r') as infile:
         for line in infile:
             if search_for_in_progress:
@@ -867,24 +869,23 @@ def parse_log_file(fn, log_index, comn):
                 except ValueError as ve:
                     pass
                 except Exception as e:
-                    #t, v, tb = sys.exc_info()
+                    # t, v, tb = sys.exc_info()
                     if hasattr(e, 'message'):
                         sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e.message))
                     else:
                         sys.stderr.write("Failed to parse file '%s', line %d : %s\n" % (fn, lineno, e))
-                    #raise t, v, tb
+                    # raise t, v, tb
             else:
                 # ignore this log line
                 pass
     return rtrs
 
 
-
 if __name__ == "__main__":
 
     data = td.TestData().data()
-    log_index = 0    # from file for router A
-    instance = 0     # all from router instance 0
+    log_index = 0  # from file for router A
+    instance = 0  # all from router instance 0
     comn = common.Common()
     try:
         for i in range(len(data)):
