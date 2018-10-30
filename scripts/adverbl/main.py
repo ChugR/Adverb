@@ -549,61 +549,61 @@ def main_except(argv):
 
     print("<hr>")
 
-    # # link names traversing network
-    # print("<a name=\"c_linkprogress\"></a>")
-    # print("<h3>Link name propagation</h3>")
-    # for i in range(0, comn.shorteners.short_link_names.len()):
-    #     if comn.shorteners.short_link_names.len() == 0:
-    #         break
-    #     sname = comn.shorteners.short_link_names.shortname(i)
-    #     print("<a name=\"%s\"></a> <h4>%s" % (sname, sname))
-    #     print(" <span> <div width=\"100%%\"; style=\"display:block; font-weight: normal; margin-bottom: 2px\" >")
-    #     print(comn.shorteners.short_link_names.longname(i, True))
-    #     print("</div> </span>")
-    #     print("</h4>")
-    #     print("<table>")
-    #     print("<tr><th>src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId> <th>Peer</th> "
-    #           "<th>T delta</th> <th>T elapsed</th></tr>")
-    #     t0 = None
-    #     tlast = None
-    #     for plf in tree:
-    #         if plf.data.name == "attach" and plf.data.link_short_name == sname:
-    #             if t0 is None:
-    #                 t0 = plf.datetime
-    #                 delta = "0.000000"
-    #                 epsed = "0.000000"
-    #             else:
-    #                 delta = time_offset(plf.datetime, tlast)
-    #                 epsed = time_offset(plf.datetime, t0)
-    #             tlast = plf.datetime
-    #             rid = comn.router_display_by_prefix[plf.prefix]
-    #             peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
-    #             peer = comn.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
-    #             print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
-    #                   "<td>%s</td> <td>%s</td> <td>%s</td></tr>" %
-    #                   (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction, peerconnid, peer, delta, epsed))
-    #     print("</table>")
-    #
-    # print("<hr>")
-    #
-    #
-    # # short data index
-    # print("<a name=\"c_rtrdump\"></a>")
-    # gbls.shorteners.short_rtr_names.htmlDump(False)
-    # print("<hr>")
-    #
-    # print("<a name=\"c_peerdump\"></a>")
-    # gbls.shorteners.short_peer_names.htmlDump(False)
-    # print("<hr>")
-    #
-    # print("<a name=\"c_linkdump\"></a>")
-    # gbls.shorteners.short_link_names.htmlDump(True)
-    # print("<hr>")
-    #
-    # print("<a name=\"c_msgdump\"></a>")
-    # gbls.shorteners.short_data_names.htmlDump(True)
-    # print("<hr>")
-    #
+    # link names traversing network
+    print("<a name=\"c_linkprogress\"></a>")
+    print("<h3>Link name propagation</h3>")
+    for i in range(0, comn.shorteners.short_link_names.len()):
+        if comn.shorteners.short_link_names.len() == 0:
+            break
+        sname = comn.shorteners.short_link_names.shortname(i)
+        print("<a name=\"%s\"></a> <h4>%s" % (sname, sname))
+        print(" <span> <div width=\"100%%\"; style=\"display:block; font-weight: normal; margin-bottom: 2px\" >")
+        print(comn.shorteners.short_link_names.longname(i, True))
+        print("</div> </span>")
+        print("</h4>")
+        print("<table>")
+        print("<tr><th>src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId> <th>Peer</th> "
+              "<th>T delta</th> <th>T elapsed</th></tr>")
+        t0 = None
+        tlast = None
+        for plf in tree:
+            if plf.data.name == "attach" and plf.data.link_short_name == sname:
+                if t0 is None:
+                    t0 = plf.datetime
+                    delta = "0.000000"
+                    epsed = "0.000000"
+                else:
+                    delta = time_offset(plf.datetime, tlast)
+                    epsed = time_offset(plf.datetime, t0)
+                tlast = plf.datetime
+                rid = plf.router.iname
+                peerconnid = "%s" % comn.conn_peers_connid.get(plf.data.conn_id, "")
+                peer = comn.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
+                print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
+                      "<td>%s</td> <td>%s</td> <td>%s</td></tr>" %
+                      (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction, peerconnid, peer, delta, epsed))
+        print("</table>")
+
+    print("<hr>")
+
+
+    # short data index
+    print("<a name=\"c_rtrdump\"></a>")
+    comn.shorteners.short_rtr_names.htmlDump(False)
+    print("<hr>")
+
+    print("<a name=\"c_peerdump\"></a>")
+    comn.shorteners.short_peer_names.htmlDump(False)
+    print("<hr>")
+
+    print("<a name=\"c_linkdump\"></a>")
+    comn.shorteners.short_link_names.htmlDump(True)
+    print("<hr>")
+
+    print("<a name=\"c_msgdump\"></a>")
+    comn.shorteners.short_data_names.htmlDump(True)
+    print("<hr>")
+
     # # link state info
     # print("<a name=\"c_ls\"></a>")
     # print("<h3>Routing link state</h3>")
