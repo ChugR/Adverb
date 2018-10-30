@@ -313,7 +313,7 @@ class AllDetails():
         return "%0.06f" % t
 
     def links_in_connection(self, id):
-        conn_details = self.gbls.conn_details_map[id]
+        conn_details = self.conn_details[id]
         n_links = 0
         for sess in conn_details.session_list:
             n_links += len(sess.link_list)
@@ -525,15 +525,16 @@ class AllDetails():
                             sdispmap[did] = splf
 
     def show_html(self):
-        for id in self.comn.all_conn_names:
-            conn_detail = self.comn.conn_details_map[id]
-            conn_frames = self.comn.conn_to_frame_map[id]
+        for conn in self.rtr.conn_list:
+            id = self.rtr.conn_id(conn)
+            conn_detail = self.rtr.details.conn_details[id]
+            conn_frames = self.rtr.conn_to_frame_map[id]
             print("<a name=\"cd_%s\"></a>" % id)
             # This lozenge shows/hides the connection's data
             print("<a href=\"javascript:toggle_node('%s_data')\">%s%s</a>" %
                   (id, text.lozenge(), text.nbsp()))
-            dir = self.comn.conn_dirs[id] if id in self.comn.conn_dirs else ""
-            peer = self.comn.conn_peers_popup.get(id, "")
+            dir = self.rtr.conn_dir[id] if id in self.rtr.conn_dir else ""
+            peer = self.rtr.conn_peer_display.get(id, "")  # peer container id
             peerconnid = self.comn.conn_peers_connid.get(id, "")
             # show the connection title
             print("%s %s %s %s (nFrames=%d) %s<br>" % \

@@ -312,10 +312,10 @@ def main_except(argv):
                 id = rtr.conn_id(conn) # this router's full connid 'A0_3'
                 peer = rtr.conn_peer_display.get(id, "") # peer container id
                 peerconnid = comn.conn_peers_connid.get(id, "")
-                n_links = 0 # TODO gbls.all_details.links_in_connection(id)
-                # tLinks += n_links
-                errs = 0 # errs = sum(1 for plf in gbls.conn_to_frame_map[id] if plf.data.amqp_error)
-                #tErrs += errs
+                n_links = rtr.details.links_in_connection(id)
+                tLinks += n_links
+                errs = sum(1 for plf in rtr.conn_to_frame_map[id] if plf.data.amqp_error)
+                tErrs += errs
                 stime = rtr.conn_open_time.get(id, text.nbsp())
                 if stime != text.nbsp():
                     stime = stime.datetime
@@ -380,7 +380,9 @@ def main_except(argv):
     # connection details
     print("<a name=\"c_conndetails\"></a>")
     print("<h3>Connection Details</h3>")
-    # TODO:                                     comn.all_details.show_html()
+    for rtrlist in comn.routers:
+        for rtr in rtrlist:
+            rtr.details.show_html()
     print("<hr>")
 
     # noteworthy log lines: highlight errors and stuff
