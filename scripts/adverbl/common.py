@@ -51,9 +51,6 @@ class Common():
     # ordered list of connection names across all routers
     all_conn_names = []
 
-    # connection_to_frame_map
-    conn_to_frame_map = {}
-
     # conn_details_map -
     # key=conn_id, val=ConnectionDetail for that connection
     conn_details_map = {}
@@ -69,10 +66,12 @@ class Common():
     # A0_1 maps to B's container_name nickname
     conn_peers_display = {}
 
-    shorteners = nicknamer.Shorteners()
+    # conn_to_frame_map - global list for easier iteration in main
+    # key = conn_id full A0_3
+    # val = list of plf lines
+    conn_to_frame_map = {}
 
-    # AMQP domain specific knowledge stored here
-    all_details = None
+    shorteners = nicknamer.Shorteners()
 
 
 def log_letter_of(idx):

@@ -395,14 +395,23 @@ class AllDetails():
                             result += ", sndr: absent"
         return result
 
-    def __init__(self, _tree, _common):
-        self.tree = _tree
+    def __init__(self, _router, _common):
+        self.rtr = _router
         self.comn = _common
 
-        for id in self.comn.all_conn_names:
-            self.comn.conn_details_map[id] = ConnectionDetail(id)
-            conn_details = self.comn.conn_details_map[id]
-            conn_frames = self.comn.conn_to_frame_map[id]
+        # conn_details - AMQP analysis
+        #   key= connection id '1', '2'
+        #   val= ConnectionDetails
+        # for each connection, for each session, for each link:
+        #   what happened
+        self.conn_details = {}
+
+
+        for conn in self.rtr.conn_list:
+            id = self.rtr.conn_id(conn)
+            self.conn_details[id] = ConnectionDetail(id)
+            conn_details = self.conn_details[id]
+            conn_frames = self.rtr.conn_to_frame_map[id]
             for plf in conn_frames:
                 pname = plf.data.name
                 if plf.data.amqp_error:

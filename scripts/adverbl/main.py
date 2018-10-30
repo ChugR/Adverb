@@ -67,10 +67,10 @@ def show_noteworthy_line(plf, gbls):
     :param glbs:
     :return:
     '''
-    rid = gbls.router_display_by_prefix[plf.prefix]
+    rid = plf.router.iname
     id = "[%s]" % plf.data.conn_id
     peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
-    peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+    peer = gbls.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
     print("%s %s %s %s %s %s %s<br>" %
           (plf.adverbl_link_to(), rid, id, plf.data.direction, peerconnid, peer,
            plf.data.web_show_str))
@@ -144,20 +144,10 @@ def main_except(argv):
         comn.router_ids.append(name)
         comn.router_display_names.append( comn.shorteners.short_rtr_names.translate(name))
 
-
-    # populate a list with all connectionIds
-    # populate a map with key=connectionId, val=[list of associated frames])
+    # aggregate connection-to-frame maps into big map
     for rtrlist in comn.routers:
         for rtr in rtrlist:
-            for conn in rtr.conn_list:
-                id = rtr.iname + "_" + str(conn)
-                comn.all_conn_names.append(id)
-                comn.conn_to_frame_map[id] = []
-    for plf in tree:
-        comn.conn_to_frame_map[plf.data.conn_id].append(plf)
-
-    # generate connection details and per-connection-session-link relationships
-    comn.all_details = amqp_detail.AllDetails(tree, comn)
+            comn.conn_to_frame_map.update(rtr.conn_to_frame_map)
 
     # generate router-to-router connection peer relationships
     peer_list = []
@@ -319,7 +309,7 @@ def main_except(argv):
             rid = rtr.container_name
             for conn in rtr.conn_list:
                 tConn += 1
-                id = rtr.conn_id(conn) # this router connid
+                id = rtr.conn_id(conn) # this router's full connid 'A0_3'
                 peer = rtr.conn_peer_display.get(id, "") # peer container id
                 peerconnid = comn.conn_peers_connid.get(id, "")
                 n_links = 0 # TODO gbls.all_details.links_in_connection(id)
@@ -387,95 +377,95 @@ def main_except(argv):
     print("</table>")
     print("<hr>")
 
-    # # connection details
-    # print("<a name=\"c_conndetails\"></a>")
-    # print("<h3>Connection Details</h3>")
-    # gbls.all_details.show_html()
-    # print("<hr>")
-    #
-    # # noteworthy log lines: highlight errors and stuff
-    # print("<a name=\"c_noteworthy\"></a>")
-    # print("<h3>Noteworthy</h3>")
-    # nErrors = 0
-    # nSettled = 0
-    # nMore = 0
-    # nResume = 0
-    # nAborted = 0
-    # nDrain = 0
-    # for plf in tree:
-    #     if plf.data.amqp_error:
-    #         nErrors += 1
-    #     if plf.data.transfer_settled:
-    #         nSettled += 1
-    #     if plf.data.transfer_more:
-    #         nMore += 1
-    #     if plf.data.transfer_resume:
-    #         nResume += 1
-    #     if plf.data.transfer_aborted:
-    #         nAborted += 1
-    #     if plf.data.flow_drain:
-    #         nDrain += 1
-    # # amqp errors
-    # print("<a href=\"javascript:toggle_node('noteworthy_errors')\">%s%s</a> AMQP errors: %d<br>" %
-    #       (lozenge(), nbsp(), nErrors))
-    # print(" <div width=\"100%%\"; "
-    #       "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
-    #       "id=\"noteworthy_errors\">")
-    # for plf in tree:
-    #     if plf.data.amqp_error:
-    #         show_noteworthy_line(plf, gbls)
-    # print("</div>")
-    # # transfers with settled=true
-    # print("<a href=\"javascript:toggle_node('noteworthy_settled')\">%s%s</a> Presettled transfers: %d<br>" %
-    #       (lozenge(), nbsp(), nSettled))
-    # print(" <div width=\"100%%\"; "
-    #       "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
-    #       "id=\"noteworthy_settled\">")
-    # for plf in tree:
-    #     if plf.data.transfer_settled:
-    #         show_noteworthy_line(plf, gbls)
-    # print("</div>")
-    # # transfers with more=true
-    # print("<a href=\"javascript:toggle_node('noteworthy_more')\">%s%s</a> Partial transfers with 'more' set: %d<br>" %
-    #       (lozenge(), nbsp(), nMore))
-    # print(" <div width=\"100%%\"; "
-    #       "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
-    #       "id=\"noteworthy_more\">")
-    # for plf in tree:
-    #     if plf.data.transfer_more:
-    #         show_noteworthy_line(plf, gbls)
-    # print("</div>")
-    # # transfers with resume=true, whatever that is
-    # print("<a href=\"javascript:toggle_node('noteworthy_resume')\">%s%s</a> Resumed transfers: %d<br>" %
-    #       (lozenge(), nbsp(), nResume))
-    # print(" <div width=\"100%%\"; "
-    #       "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
-    #       "id=\"noteworthy_resume\">")
-    # for plf in tree:
-    #     if plf.data.transfer_resume:
-    #         show_noteworthy_line(plf, gbls)
-    # print("</div>")
-    # # transfers with abort=true
-    # print("<a href=\"javascript:toggle_node('noteworthy_aborts')\">%s%s</a> Aborted transfers: %d<br>" %
-    #       (lozenge(), nbsp(), nAborted))
-    # print(" <div width=\"100%%\"; "
-    #       "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
-    #       "id=\"noteworthy_aborts\">")
-    # for plf in tree:
-    #     if plf.data.transfer_aborted:
-    #         show_noteworthy_line(plf, gbls)
-    # print("</div>")
-    # # flow with drain=true
-    # print("<a href=\"javascript:toggle_node('noteworthy_drain')\">%s%s</a> Flow with 'drain' set: %d<br>" %
-    #       (lozenge(), nbsp(), nDrain))
-    # print(" <div width=\"100%%\"; "
-    #       "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
-    #       "id=\"noteworthy_drain\">")
-    # for plf in tree:
-    #     if plf.data.flow_drain:
-    #         show_noteworthy_line(plf, gbls)
-    # print("</div>")
-    # print("<hr>")
+    # connection details
+    print("<a name=\"c_conndetails\"></a>")
+    print("<h3>Connection Details</h3>")
+    # TODO:                                     comn.all_details.show_html()
+    print("<hr>")
+
+    # noteworthy log lines: highlight errors and stuff
+    print("<a name=\"c_noteworthy\"></a>")
+    print("<h3>Noteworthy</h3>")
+    nErrors = 0
+    nSettled = 0
+    nMore = 0
+    nResume = 0
+    nAborted = 0
+    nDrain = 0
+    for plf in tree:
+        if plf.data.amqp_error:
+            nErrors += 1
+        if plf.data.transfer_settled:
+            nSettled += 1
+        if plf.data.transfer_more:
+            nMore += 1
+        if plf.data.transfer_resume:
+            nResume += 1
+        if plf.data.transfer_aborted:
+            nAborted += 1
+        if plf.data.flow_drain:
+            nDrain += 1
+    # amqp errors
+    print("<a href=\"javascript:toggle_node('noteworthy_errors')\">%s%s</a> AMQP errors: %d<br>" %
+          (text.lozenge(), text.nbsp(), nErrors))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_errors\">")
+    for plf in tree:
+        if plf.data.amqp_error:
+            show_noteworthy_line(plf, comn)
+    print("</div>")
+    # transfers with settled=true
+    print("<a href=\"javascript:toggle_node('noteworthy_settled')\">%s%s</a> Presettled transfers: %d<br>" %
+          (text.lozenge(), text.nbsp(), nSettled))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_settled\">")
+    for plf in tree:
+        if plf.data.transfer_settled:
+            show_noteworthy_line(plf, comn)
+    print("</div>")
+    # transfers with more=true
+    print("<a href=\"javascript:toggle_node('noteworthy_more')\">%s%s</a> Partial transfers with 'more' set: %d<br>" %
+          (text.lozenge(), text.nbsp(), nMore))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_more\">")
+    for plf in tree:
+        if plf.data.transfer_more:
+            show_noteworthy_line(plf, comn)
+    print("</div>")
+    # transfers with resume=true, whatever that is
+    print("<a href=\"javascript:toggle_node('noteworthy_resume')\">%s%s</a> Resumed transfers: %d<br>" %
+          (text.lozenge(), text.nbsp(), nResume))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_resume\">")
+    for plf in tree:
+        if plf.data.transfer_resume:
+            show_noteworthy_line(plf, comn)
+    print("</div>")
+    # transfers with abort=true
+    print("<a href=\"javascript:toggle_node('noteworthy_aborts')\">%s%s</a> Aborted transfers: %d<br>" %
+          (text.lozenge(), text.nbsp(), nAborted))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_aborts\">")
+    for plf in tree:
+        if plf.data.transfer_aborted:
+            show_noteworthy_line(plf, comn)
+    print("</div>")
+    # flow with drain=true
+    print("<a href=\"javascript:toggle_node('noteworthy_drain')\">%s%s</a> Flow with 'drain' set: %d<br>" %
+          (text.lozenge(), text.nbsp(), nDrain))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"noteworthy_drain\">")
+    for plf in tree:
+        if plf.data.flow_drain:
+            show_noteworthy_line(plf, comn)
+    print("</div>")
+    print("<hr>")
 
     # the proton log lines
     # log lines in         f_A_116
@@ -512,18 +502,18 @@ def main_except(argv):
     # # data traversing network
     # print("<a name=\"c_messageprogress\"></a>")
     # print("<h3>Message progress</h3>")
-    # for i in range(0, gbls.shorteners.short_data_names.len()):
-    #     sname = gbls.shorteners.short_data_names.shortname(i)
+    # for i in range(0, comn.shorteners.short_data_names.len()):
+    #     sname = comn.shorteners.short_data_names.shortname(i)
     #     size = 0
     #     for plf in tree:
     #         if plf.data.name == "transfer" and plf.transfer_short_name == sname:
     #             size = plf.data.transfer_size
     #             break
     #     print("<a name=\"%s\"></a> <h4>%s (%s)" % (sname, sname, size))
-    #     print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, lozenge()))
+    #     print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, text.lozenge()))
     #     print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" %
     #           ("data_" + sname))
-    #     print(" ",  gbls.shorteners.short_data_names.longname(i, True))
+    #     print(" ",  comn.shorteners.short_data_names.longname(i, True))
     #     print("</div> </span>")
     #     print("</h4>")
     #     print("<table>")
@@ -545,9 +535,9 @@ def main_except(argv):
     #             sepsed = ""
     #             if not plf.data.final_disposition is None:
     #                 sepsed = time_offset(plf.data.final_disposition.datetime, t0)
-    #             rid = gbls.router_display_by_prefix[plf.prefix]
+    #             rid = comn.router_display_by_prefix[plf.prefix]
     #             peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
-    #             peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+    #             peer = comn.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
     #             print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
     #                   "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
     #                   (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction,
@@ -560,13 +550,13 @@ def main_except(argv):
     # # link names traversing network
     # print("<a name=\"c_linkprogress\"></a>")
     # print("<h3>Link name propagation</h3>")
-    # for i in range(0, gbls.shorteners.short_link_names.len()):
-    #     if gbls.shorteners.short_link_names.len() == 0:
+    # for i in range(0, comn.shorteners.short_link_names.len()):
+    #     if comn.shorteners.short_link_names.len() == 0:
     #         break
-    #     sname = gbls.shorteners.short_link_names.shortname(i)
+    #     sname = comn.shorteners.short_link_names.shortname(i)
     #     print("<a name=\"%s\"></a> <h4>%s" % (sname, sname))
     #     print(" <span> <div width=\"100%%\"; style=\"display:block; font-weight: normal; margin-bottom: 2px\" >")
-    #     print(gbls.shorteners.short_link_names.longname(i, True))
+    #     print(comn.shorteners.short_link_names.longname(i, True))
     #     print("</div> </span>")
     #     print("</h4>")
     #     print("<table>")
@@ -584,9 +574,9 @@ def main_except(argv):
     #                 delta = time_offset(plf.datetime, tlast)
     #                 epsed = time_offset(plf.datetime, t0)
     #             tlast = plf.datetime
-    #             rid = gbls.router_display_by_prefix[plf.prefix]
+    #             rid = comn.router_display_by_prefix[plf.prefix]
     #             peerconnid = gbls.conn_peers_connid.get(plf.data.conn_id, "")
-    #             peer = gbls.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
+    #             peer = comn.conn_peers_popup.get(plf.data.conn_id, "")  # peer container id
     #             print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
     #                   "<td>%s</td> <td>%s</td> <td>%s</td></tr>" %
     #                   (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction, peerconnid, peer, delta, epsed))
@@ -618,8 +608,8 @@ def main_except(argv):
     # print("<h4>Link state costs</h4>")
     # print("<table>")
     # print("<tr><th>Time</th> <th>Router</th>")
-    # for i in range(0, gbls.n_logs):
-    #     print("<th>%s</th>" % gbls.router_ids[i])
+    # for i in range(0, comn.n_logs):
+    #     print("<th>%s</th>" % comn.router_ids[i])
     # print("</tr>")
     # for plf in ls_tree:
     #     if "costs" in plf.line:
@@ -630,13 +620,13 @@ def main_except(argv):
     #             sti = line.find("{")
     #             line = line[sti:]
     #             dict = ast.literal_eval(line)
-    #             for i in range(0, gbls.n_logs):
-    #                 if gbls.router_ids[i] in dict:
-    #                     val = dict[gbls.router_ids[i]]
-    #                 elif gbls.log_letter_of(i) == plf.prefix:
-    #                     val = nbsp()
+    #             for i in range(0, comn.n_logs):
+    #                 if comn.router_ids[i] in dict:
+    #                     val = dict[comn.router_ids[i]]
+    #                 elif common.log_letter_of(i) == plf.prefix:
+    #                     val = text.nbsp()
     #                 else:
-    #                     val = "<span style=\"background-color:yellow\">%s</span>" % (nbsp() * 4)
+    #                     val = "<span style=\"background-color:yellow\">%s</span>" % (text.nbsp() * 4)
     #                 print("<td>%s</td>" % val)
     #         except:
     #             pass

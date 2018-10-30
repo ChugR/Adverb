@@ -37,6 +37,7 @@ import sys
 import traceback
 import datetime
 
+import amqp_detail
 import common
 import text
 
@@ -86,6 +87,9 @@ class Router():
         # conn_transfer_bytes - count of bytes transfered over this connection
         self.conn_xfer_bytes = {}
 
+        # connection_to_frame_map
+        self.conn_to_frame_map = {}
+
         # conn_peer - peer container long name
         #   key= connection id '1', '2'
         #   val= original peer container name
@@ -107,19 +111,15 @@ class Router():
         #   val= '<-' peer created conn, '->' router created conn
         self.conn_dir = {}
 
-        # conn_details - AMQP analysis
-        #   key= connection id '1', '2'
-        #   val= ConnectionDetails
-        # for each connection, for each session, for each link:
-        #   what happened
-        self.conn_details = {}
-
         # router_ls - link state 'ROUTER_LS (info)' lines
         self.router_ls = []
 
         # open and close times
         self.conn_open_time = {}   # first log line with [N] seen
         self.conn_close_time = {}  # last close log line seen
+
+        # details: for each connection, for each session, for each link, whaaa?
+        self.details = None
 
 
     def discover_connection_facts(self, comn):
@@ -136,9 +136,8 @@ class Router():
         '''
         for item in self.lines:
             conn_num = int(item.data.conn_num)
-            id = item.data.conn_id
+            id = item.data.conn_id           # full name A0_3
             if conn_num not in self.conn_list:
-                self.conn_list.append(conn_num)
                 cdir = ""
                 if not item.data.direction == "":
                     cdir = item.data.direction
@@ -147,10 +146,13 @@ class Router():
                         cdir = text.direction_out()
                     elif "Accepting" in item.data.web_show_str:
                         cdir = text.direction_in()
+                self.conn_list.append(conn_num)
+                self.conn_to_frame_map[id] = []
                 self.conn_dir[id] = cdir
                 self.conn_log_lines[id] = 0   # line counter
                 self.conn_xfer_bytes[id] = 0  # byte counter
                 self.conn_open_time[id] = item
+            self.conn_to_frame_map[id].append(item)
             # inbound open handling
             if item.data.name == "open" and item.data.direction == text.direction_in():
                 if item.data.conn_id in self.conn_peer:
@@ -168,8 +170,14 @@ class Router():
             if item.data.name == "transfer":
                 self.conn_xfer_bytes[id] += int(item.data.transfer_size)
         self.conn_list = sorted(self.conn_list)
+        self.details = amqp_detail.AllDetails(self, comn)
 
     def conn_id(self, conn_num):
+        '''
+        Given this router's connection number return the global connection id
+        :param conn_num: connection number
+        :return: conn_id in the for A0_3
+        '''
         return self.iname + "_" + str(conn_num)
 
 
