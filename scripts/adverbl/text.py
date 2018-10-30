@@ -19,35 +19,39 @@
 # under the License.
 #
 
-'''Common text strings'''
+"""Common text strings"""
+
+
 def direction_in():
-    '''Log line text indicating received by router'''
+    """Log line text indicating received by router"""
     return "<-"
 
 
 def direction_out():
-    '''Log line text indicating transmitted by router'''
+    """Log line text indicating transmitted by router"""
     return "->"
 
+
 def lozenge():
-    '''
+    """
     :return: HTML document lozenge character
-    '''
+    """
     return "&#9674;"
 
 
 def nbsp():
-    '''
+    """
     :return: HTML Non-breaking space
-    '''
+    """
     return "&#160;"
 
 
-'''Large text strings used by main that change infrequently'''
+"""Large text strings used by main that change infrequently"""
 
-    # html head, start body
+
+# html head, start body
 def web_page_head():
-    return '''<!DOCTYPE html>
+    return """<!DOCTYPE html>
 <html>
 <head>
 <title>Adverbl Analysis - qpid-dispatch router logs</title>
@@ -103,11 +107,11 @@ function go_back()
 {
   window.history.back();
 }
-'''
+"""
 
 
 def web_page_toc():
-    return '''
+    return """
 <h3>Contents</h3>
 <table>
 <tr> <th>Section</th>                                                 <th>Description</th> </tr>
@@ -126,8 +130,7 @@ def web_page_toc():
 <tr><td><a href=\"#c_ls\"             >Router link state</a></td>     <td>Link state analysis</td></tr>
 </table>
 <hr>
-'''
-
+"""
 
 
 if __name__ == "__main__":
