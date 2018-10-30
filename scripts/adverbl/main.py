@@ -604,37 +604,55 @@ def main_except(argv):
     comn.shorteners.short_data_names.htmlDump(True)
     print("<hr>")
 
-    # # link state info
-    # print("<a name=\"c_ls\"></a>")
-    # print("<h3>Routing link state</h3>")
-    # print("<h4>Link state costs</h4>")
-    # print("<table>")
-    # print("<tr><th>Time</th> <th>Router</th>")
-    # for i in range(0, comn.n_logs):
-    #     print("<th>%s</th>" % comn.router_ids[i])
-    # print("</tr>")
-    # for plf in ls_tree:
-    #     if "costs" in plf.line:
-    #         # Processing: Computed costs: {u'A': 1, u'C': 51L, u'B': 101L}
-    #         print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" %(plf.prefix, plf.lineno))))
-    #         try:
-    #             line = plf.line
-    #             sti = line.find("{")
-    #             line = line[sti:]
-    #             dict = ast.literal_eval(line)
-    #             for i in range(0, comn.n_logs):
-    #                 if comn.router_ids[i] in dict:
-    #                     val = dict[comn.router_ids[i]]
-    #                 elif common.log_letter_of(i) == plf.prefix:
-    #                     val = text.nbsp()
-    #                 else:
-    #                     val = "<span style=\"background-color:yellow\">%s</span>" % (text.nbsp() * 4)
-    #                 print("<td>%s</td>" % val)
-    #         except:
-    #             pass
-    #         print("</tr>")
-    # print ("</table>")
-    # print("<hr>")
+    # link state info
+    print("<a name=\"c_ls\"></a>")
+    print("<h3>Routing link state</h3>")
+    print("<h4>Link state costs</h4>")
+    print("<table>")
+    print("<tr><th>Time</th> <th>Router</th>")
+    for i in range(0, comn.n_logs):
+        print("<th>%s</th>" % common.log_letter_of(i))
+    print("</tr>")
+    for plf in ls_tree:
+        if "costs" in plf.line:
+            # Processing: Computed costs: {u'A': 1, u'C': 51L, u'B': 101L}
+            print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" %(plf.router.iname, plf.lineno))))
+            try:
+                line = plf.line
+                sti = line.find("{")
+                line = line[sti:]
+                dict = ast.literal_eval(line)
+                for i in range(0, comn.n_logs):
+                    if len(comn.routers[i]) > 0:
+                        if comn.routers[i][0].container_name in dict:
+                            val = dict[comn.routers[i][0].container_name]
+                        elif i == plf.router.log_index:
+                            val = text.nbsp()
+                        else:
+                            val = "<span style=\"background-color:orange\">%s</span>" % (text.nbsp() * 2)
+                    else:
+                        val = "<span style=\"background-color:orange\">%s</span>" % (text.nbsp() * 2)
+                    print("<td>%s</td>" % val)
+            except:
+                pass
+            print("</tr>")
+    print("</table>")
+    print("<br>")
+    print("<a href=\"javascript:toggle_node('ls_costs')\">%s%s</a> Link state costs data<br>" %
+          (text.lozenge(), text.nbsp()))
+    print(" <div width=\"100%%\"; "
+          "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
+          "id=\"ls_costs\">")
+    print("<table>")
+    print("<tr><th>Time</th> <th>Router</th> <th>Log</th></tr>")
+    for plf in ls_tree:
+        if "costs" in plf.line:
+            print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" % (plf.router.iname, plf.lineno))))
+            print("<td>%s</td></tr>" % plf.line)
+    print("</table>")
+    print("</div>")
+
+    print("<hr>")
 
     print("</body>")
 
