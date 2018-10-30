@@ -39,34 +39,32 @@ import os
 import sys
 import traceback
 
-import amqp_detail
 import common
-import nicknamer
 import parser
 import router
 import text
 
 
 def time_offset(ttest, t0):
-    '''
+    """
     Return a string time delta between two datetime objects in seconds formatted
     to six significant decimal places.
     :param ttest:
     :param t0:
     :return:
-    '''
+    """
     delta = ttest - t0
     t = float(delta.seconds) + float(delta.microseconds) / 1000000.0
     return "%0.06f" % t
 
 
 def show_noteworthy_line(plf, gbls):
-    '''
+    """
     Given a log line, print the noteworthy display line
     :param plf:
     :param glbs:
     :return:
-    '''
+    """
     rid = plf.router.iname
     id = "[%s]" % plf.data.conn_id
     peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
@@ -79,7 +77,6 @@ def show_noteworthy_line(plf, gbls):
 #
 #
 def main_except(argv):
-    #pdb.set_trace()
     """
     Given a list of log file names, send the javascript web page to stdout
     """
