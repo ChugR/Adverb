@@ -139,7 +139,7 @@ class Router():
             id = item.data.conn_id           # full name A0_3
             if conn_num not in self.conn_list:
                 cdir = ""
-                if not item.data.direction == "":
+                if item.data.direction != "":
                     cdir = item.data.direction
                 else:
                     if "Connecting" in item.data.web_show_str:

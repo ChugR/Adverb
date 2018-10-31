@@ -148,9 +148,9 @@ class DescribedType:
         return "DescribedType %s( %d ) : %s" % (self.dtype_name, self.dtype_number, self.dict)
 
     def add_field_to_dict(self, f_text, expected_key=None):
-        if not '=' in f_text:
+        if '=' not in f_text:
             raise ValueError("Field does not contain equal sign '%s'" % self.line)
-        if not expected_key is None and not f_text.startswith(expected_key):
+        if expected_key is not None and not f_text.startswith(expected_key):
             raise ValueError("Transfer field %s not in order from line: %s" % (expected_key, self.line))
         key, val = DescribedType.get_key_and_val(f_text)
         if val.endswith(','):
@@ -161,7 +161,7 @@ class DescribedType:
         keys = ["batchable", "aborted", "resume", "state", "rcv-settle-mode", "more", "settled", "message-format"]
         for key in keys:
             idx = self.line.rfind(key)
-            if not idx == -1:
+            if idx != -1:
                 field = self.line[idx:]
                 self.add_field_to_dict(field, key)
                 self.line = self.line[:idx].strip()
@@ -229,7 +229,7 @@ class DescribedType:
         # process fields
         fields = splitter.Splitter.split(self.line)
         while len(fields) > 0 and len(fields[0]) > 0:
-            if not '=' in fields[0]:
+            if '=' not in fields[0]:
                 raise ValueError("Field does not contain equal sign '%s'" % fields[0])
             key, val = DescribedType.get_key_and_val(fields[0])
             del fields[0]
@@ -446,7 +446,7 @@ class ParsedLogLine(object):
             res.last = self.resdict_value(resdict, "last", res.first)
             res.settled = self.resdict_value(resdict, "settled", "false")
             state = resdict.get("state")
-            if not state is None:
+            if state is not None:
                 res.disposition_state = state.dtype_name
             ###    colorize_dispositions_not_accepted(proto, res, global_vars, count_anomalies)
             res.web_show_str = ("<strong>%s</strong>  [%s] (%s %s-%s)" %
@@ -700,7 +700,7 @@ class ParsedLogLine(object):
         if self.line.endswith(')'):
             idxOP = self.line.rfind('(')
             idxColon = self.line.rfind(':')
-            if not idxOP == -1 and not idxColon == -1:
+            if idxOP != -1 and idxColon != -1:
                 if idxColon > idxOP:
                     lNumStr = self.line[(idxColon + 1): (-1)]
                     try:
@@ -789,7 +789,7 @@ class ParsedLogLine(object):
             # data.transfer_data and delete it from the line.
             rz = re.compile(r'\] \(\d+\) \"').search(self.line)
             # aborted transfers may or may not have size/data in the log line
-            if not rz is None and len(rz.regs) > 0:
+            if rz is not None and len(rz.regs) > 0:
                 splitSt, splitTo = rz.regs[0]
                 self.data.transfer_size = self.line[splitSt + 3: splitTo - 3]
                 self.data.transfer_data = self.line[splitTo - 1:]  # discard (NNN) size field

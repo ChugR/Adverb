@@ -58,17 +58,17 @@ def time_offset(ttest, t0):
     return "%0.06f" % t
 
 
-def show_noteworthy_line(plf, gbls):
+def show_noteworthy_line(plf, comn):
     """
     Given a log line, print the noteworthy display line
-    :param plf:
-    :param glbs:
+    :param plf: parsed log line
+    :param comn:
     :return:
     """
     rid = plf.router.iname
     id = "[%s]" % plf.data.conn_id
-    peerconnid = "[%s]" % gbls.conn_peers_connid.get(plf.data.conn_id, "")
-    peer = gbls.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
+    peerconnid = "[%s]" % comn.conn_peers_connid.get(plf.data.conn_id, "")
+    peer = plf.router.conn_peer_display.get(plf.data.conn_id, "")  # peer container id
     print("%s %s %s %s %s %s %s<br>" %
           (plf.adverbl_link_to(), rid, id, plf.data.direction, peerconnid, peer,
            plf.data.web_show_str))
@@ -87,7 +87,7 @@ def main_except(argv):
     comn = common.Common()
 
     # process the log files and add the results to router_array
-    for log_i in range(0, len(sys.argv)-1):
+    for log_i in range(0, len(sys.argv) - 1):
         arg_log_file = sys.argv[log_i + 1]
         comn.log_fns.append(arg_log_file)
         comn.n_logs += 1
@@ -104,7 +104,7 @@ def main_except(argv):
             rtr.discover_connection_facts(comn)
 
     # Create lists of various things sorted by time
-    tree = []     # log line
+    tree = []  # log line
     ls_tree = []  # link state lines
     rr_tree = []  # restart records
     for rtrlist in comn.routers:
@@ -128,18 +128,18 @@ def main_except(argv):
                 rtrlist[0].version = rtrlist[1].version
             for i in range(0, len(rtrlist) - 1):
                 namei = rtrlist[i].container_name
-                namej = rtrlist[i+1].container_name
-                if  namei != namej:
+                namej = rtrlist[i + 1].container_name
+                if namei != namej:
                     sys.exit('Inconsistent container names, log file %s, instance %d:%s but instance %d:%s' %
-                             (comn.log_fns[fi], i, namei, i+1, namej))
+                             (comn.log_fns[fi], i, namei, i + 1, namej))
                 namei = rtrlist[i].version
-                namej = rtrlist[i+1].version
-                if  namei != namej:
+                namej = rtrlist[i + 1].version
+                if namei != namej:
                     sys.exit('Inconsistent router versions, log file %s, instance %d:%s but instance %d:%s' %
-                             (comn.log_fns[fi], i, namei, i+1, namej))
+                             (comn.log_fns[fi], i, namei, i + 1, namej))
         name = rtrlist[0].container_name if len(rtrlist) > 0 else ("Unknown_%d" % fi)
         comn.router_ids.append(name)
-        comn.router_display_names.append( comn.shorteners.short_rtr_names.translate(name))
+        comn.router_display_names.append(comn.shorteners.short_rtr_names.translate(name))
 
     # aggregate connection-to-frame maps into big map
     for rtrlist in comn.routers:
@@ -150,18 +150,18 @@ def main_except(argv):
     peer_list = []
     for plf in tree:
         if plf.data.name == "open" and plf.data.direction_is_in():
-            cid = plf.data.conn_id     # the router that generated this log file
+            cid = plf.data.conn_id  # the router that generated this log file
             if "properties" in plf.data.described_type.dict:
-                peer_conn = plf.data.described_type.dict["properties"].get(':"qd.conn-id"', "") # router that sent the open
-                if not peer_conn == "" and not plf.data.conn_peer == "":
+                peer_conn = plf.data.described_type.dict["properties"].get(':"qd.conn-id"',
+                                                                           "")  # router that sent the open
+                if peer_conn != "" and plf.data.conn_peer != "":
                     pid_peer = plf.data.conn_peer.strip('\"')
                     rtr, rtridx = router.which_router_id_tod(comn.routers, pid_peer, plf.datetime)
                     if rtr is not None:
                         pid = rtr.conn_id(peer_conn)
                         hit = sorted((cid, pid))
-                        if not hit in peer_list:
-                            peer_list.append( hit )
-
+                        if hit not in peer_list:
+                            peer_list.append(hit)
 
     for (key, val) in peer_list:
         if key in comn.conn_peers_connid:
@@ -177,7 +177,7 @@ def main_except(argv):
     #
     # Start producing the output stream
     #
-    print (text.web_page_head())
+    print(text.web_page_head())
 
     #
     # Generate javascript
@@ -292,8 +292,9 @@ def main_except(argv):
     print("</p>")
 
     print("<h3>Connections by ConnectionId</h3>")
-    print("<table><tr> <th rowspan=\"2\">View</th> <th colspan=\"2\">Router</th> <th rowspan=\"2\">Dir</th> <th colspan=\"2\">Peer</th> <th rowspan=\"2\">Log lines</th> "
-          "<th rowspan=\"2\">N links</th><th rowspan=\"2\">Transfer bytes</th> <th rowspan=\"2\">AMQP errors</th> <th rowspan=\"2\">Open time</th> <th rowspan=\"2\">Close time</th></tr>")
+    print(
+        "<table><tr> <th rowspan=\"2\">View</th> <th colspan=\"2\">Router</th> <th rowspan=\"2\">Dir</th> <th colspan=\"2\">Peer</th> <th rowspan=\"2\">Log lines</th> "
+        "<th rowspan=\"2\">N links</th><th rowspan=\"2\">Transfer bytes</th> <th rowspan=\"2\">AMQP errors</th> <th rowspan=\"2\">Open time</th> <th rowspan=\"2\">Close time</th></tr>")
     print("<tr> <th>container</th> <th>connid</th> <th>connid</th> <th>container</th></tr>")
 
     tConn = 0
@@ -306,8 +307,8 @@ def main_except(argv):
             rid = rtr.container_name
             for conn in rtr.conn_list:
                 tConn += 1
-                id = rtr.conn_id(conn) # this router's full connid 'A0_3'
-                peer = rtr.conn_peer_display.get(id, "") # peer container id
+                id = rtr.conn_id(conn)  # this router's full connid 'A0_3'
+                peer = rtr.conn_peer_display.get(id, "")  # peer container id
                 peerconnid = comn.conn_peers_connid.get(id, "")
                 n_links = rtr.details.links_in_connection(id)
                 tLinks += n_links
@@ -328,8 +329,9 @@ def main_except(argv):
                        rtr.conn_xfer_bytes[id], errs, stime, etime))
             tLines += rtr.conn_log_lines[id]
             tBytes += rtr.conn_xfer_bytes[id]
-    print("<td>Total</td><td>%d</td><td> </td><td> </td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
-          (tConn, tLines, tLinks, tBytes, tErrs))
+    print(
+        "<td>Total</td><td>%d</td><td> </td><td> </td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
+        (tConn, tLines, tLinks, tBytes, tErrs))
     print("</table>")
 
     print("<h3>Router Restart and Connection chronology</h3>")
@@ -338,7 +340,7 @@ def main_except(argv):
     for rtrlist in comn.routers:
         for rtr in rtrlist:
             rid = rtr.container_name
-            cl.append( common.RestartRec(rtr.iname, rtr, "restart", rtr.restart_rec.datetime) )
+            cl.append(common.RestartRec(rtr.iname, rtr, "restart", rtr.restart_rec.datetime))
             for conn in rtr.conn_list:
                 id = rtr.conn_id(conn)
                 if id in rtr.conn_open_time:
@@ -385,28 +387,28 @@ def main_except(argv):
     # noteworthy log lines: highlight errors and stuff
     print("<a name=\"c_noteworthy\"></a>")
     print("<h3>Noteworthy</h3>")
-    nErrors = 0
-    nSettled = 0
-    nMore = 0
-    nResume = 0
-    nAborted = 0
-    nDrain = 0
+    n_errors = 0
+    n_settled = 0
+    n_more = 0
+    n_resume = 0
+    n_aborted = 0
+    n_drain = 0
     for plf in tree:
         if plf.data.amqp_error:
-            nErrors += 1
+            n_errors += 1
         if plf.data.transfer_settled:
-            nSettled += 1
+            n_settled += 1
         if plf.data.transfer_more:
-            nMore += 1
+            n_more += 1
         if plf.data.transfer_resume:
-            nResume += 1
+            n_resume += 1
         if plf.data.transfer_aborted:
-            nAborted += 1
+            n_aborted += 1
         if plf.data.flow_drain:
-            nDrain += 1
+            n_drain += 1
     # amqp errors
     print("<a href=\"javascript:toggle_node('noteworthy_errors')\">%s%s</a> AMQP errors: %d<br>" %
-          (text.lozenge(), text.nbsp(), nErrors))
+          (text.lozenge(), text.nbsp(), n_errors))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"noteworthy_errors\">")
@@ -416,7 +418,7 @@ def main_except(argv):
     print("</div>")
     # transfers with settled=true
     print("<a href=\"javascript:toggle_node('noteworthy_settled')\">%s%s</a> Presettled transfers: %d<br>" %
-          (text.lozenge(), text.nbsp(), nSettled))
+          (text.lozenge(), text.nbsp(), n_settled))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"noteworthy_settled\">")
@@ -426,7 +428,7 @@ def main_except(argv):
     print("</div>")
     # transfers with more=true
     print("<a href=\"javascript:toggle_node('noteworthy_more')\">%s%s</a> Partial transfers with 'more' set: %d<br>" %
-          (text.lozenge(), text.nbsp(), nMore))
+          (text.lozenge(), text.nbsp(), n_more))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"noteworthy_more\">")
@@ -436,7 +438,7 @@ def main_except(argv):
     print("</div>")
     # transfers with resume=true, whatever that is
     print("<a href=\"javascript:toggle_node('noteworthy_resume')\">%s%s</a> Resumed transfers: %d<br>" %
-          (text.lozenge(), text.nbsp(), nResume))
+          (text.lozenge(), text.nbsp(), n_resume))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"noteworthy_resume\">")
@@ -446,7 +448,7 @@ def main_except(argv):
     print("</div>")
     # transfers with abort=true
     print("<a href=\"javascript:toggle_node('noteworthy_aborts')\">%s%s</a> Aborted transfers: %d<br>" %
-          (text.lozenge(), text.nbsp(), nAborted))
+          (text.lozenge(), text.nbsp(), n_aborted))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"noteworthy_aborts\">")
@@ -456,7 +458,7 @@ def main_except(argv):
     print("</div>")
     # flow with drain=true
     print("<a href=\"javascript:toggle_node('noteworthy_drain')\">%s%s</a> Flow with 'drain' set: %d<br>" %
-          (text.lozenge(), text.nbsp(), nDrain))
+          (text.lozenge(), text.nbsp(), n_drain))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"noteworthy_drain\">")
@@ -472,26 +474,26 @@ def main_except(argv):
     print("<a name=\"c_logdata\"></a>")
     print("<h3>Log data</h3>")
     for plf in tree:
-        dict = plf.data.described_type.dict
+        l_dict = plf.data.described_type.dict
         print("<div width=\"100%%\" style=\"display:block  margin-bottom: 2px\" id=\"%s\">" % plf.fid)
         print("<a name=\"%s\"></a>" % plf.fid)
-        detailname = plf.fid + "_d"
+        detailname = plf.fid + "_d"  # type: str
         loz = "<a href=\"javascript:toggle_node('%s')\">%s%s</a>" % (detailname, text.lozenge(), text.nbsp())
         rtr = plf.router
-        rid =  comn.router_display_names[rtr.log_index]
+        rid = comn.router_display_names[rtr.log_index]
 
         peerconnid = "%s" % comn.conn_peers_connid.get(plf.data.conn_id, "")
-        peer = comn.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
+        peer = rtr.conn_peer_display.get(plf.data.conn_id, "")  # peer container id
         print(loz, plf.datetime, ("%s#%d" % (plf.prefixi, plf.lineno)), rid, ("[%s]" % plf.data.conn_id),
               plf.data.direction, ("[%s]" % peerconnid), peer,
               plf.data.web_show_str, plf.data.disposition_display, "<br>")
         print(" <div width=\"100%%\"; "
               "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
               "id=\"%s\">" %
-              (detailname))
-        for key in sorted(dict.iterkeys()):
-            val = dict[key]
-            print("%s : %s <br>" % (key, cgi.escape( str(val) )))
+              detailname)
+        for key in sorted(l_dict.iterkeys()):
+            val = l_dict[key]
+            print("%s : %s <br>" % (key, cgi.escape(str(val))))
         if plf.data.name == "transfer":
             print("Header and annotations : %s <br>" % plf.data.transfer_hdr_annos)
         print("</div>")
@@ -512,12 +514,13 @@ def main_except(argv):
         print(" <span> <a href=\"javascript:toggle_node('%s')\"> %s</a>" % ("data_" + sname, text.lozenge()))
         print(" <div width=\"100%%\"; style=\"display:none; font-weight: normal; margin-bottom: 2px\" id=\"%s\">" %
               ("data_" + sname))
-        print(" ",  comn.shorteners.short_data_names.longname(i, True))
+        print(" ", comn.shorteners.short_data_names.longname(i, True))
         print("</div> </span>")
         print("</h4>")
         print("<table>")
-        print("<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId</th> <th>Peer</th> "
-              "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
+        print(
+            "<tr><th>Src</th> <th>Time</th> <th>Router</th> <th>ConnId</th> <th>Dir</th> <th>ConnId</th> <th>Peer</th> "
+            "<th>T delta</th> <th>T elapsed</th><th>Settlement</th><th>S elapsed</th></tr>")
         t0 = None
         tlast = None
         for plf in tree:
@@ -532,11 +535,11 @@ def main_except(argv):
                     epsed = time_offset(plf.datetime, t0)
                     tlast = plf.datetime
                 sepsed = ""
-                if not plf.data.final_disposition is None:
+                if plf.data.final_disposition is not None:
                     sepsed = time_offset(plf.data.final_disposition.datetime, t0)
                 rid = plf.router.iname
                 peerconnid = "%s" % comn.conn_peers_connid.get(plf.data.conn_id, "")
-                peer = comn.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
+                peer = plf.router.conn_peer_display.get(plf.data.conn_id, "")  # peer container id
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
                       "<td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> </tr>" %
                       (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction,
@@ -575,14 +578,14 @@ def main_except(argv):
                 tlast = plf.datetime
                 rid = plf.router.iname
                 peerconnid = "%s" % comn.conn_peers_connid.get(plf.data.conn_id, "")
-                peer = comn.conn_peers_display.get(plf.data.conn_id, "")  # peer container id
+                peer = plf.router.conn_peer_display.get(plf.data.conn_id, "")  # peer container id
                 print("<tr><td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> <td>%s</td> "
                       "<td>%s</td> <td>%s</td> <td>%s</td></tr>" %
-                      (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction, peerconnid, peer, delta, epsed))
+                      (plf.adverbl_link_to(), plf.datetime, rid, plf.data.conn_id, plf.data.direction, peerconnid, peer,
+                       delta, epsed))
         print("</table>")
 
     print("<hr>")
-
 
     # short data index
     print("<a name=\"c_rtrdump\"></a>")
@@ -613,16 +616,16 @@ def main_except(argv):
     for plf in ls_tree:
         if "costs" in plf.line:
             # Processing: Computed costs: {u'A': 1, u'C': 51L, u'B': 101L}
-            print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" %(plf.router.iname, plf.lineno))))
+            print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" % (plf.router.iname, plf.lineno))))
             try:
                 line = plf.line
                 sti = line.find("{")
                 line = line[sti:]
-                dict = ast.literal_eval(line)
+                l_dict = ast.literal_eval(line)
                 for i in range(0, comn.n_logs):
                     if len(comn.routers[i]) > 0:
-                        if comn.routers[i][0].container_name in dict:
-                            val = dict[comn.routers[i][0].container_name]
+                        if comn.routers[i][0].container_name in l_dict:
+                            val = l_dict[comn.routers[i][0].container_name]
                         elif i == plf.router.log_index:
                             val = text.nbsp()
                         else:
@@ -661,6 +664,7 @@ def main(argv):
     except Exception as e:
         traceback.print_exc()
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

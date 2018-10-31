@@ -63,14 +63,14 @@ class Splitter():
                         pending_comma = False
                     res += c
                 else:
-                    if not res == '':
+                    if res != '':
                         if pending_comma:
                             pending_comma = False
                         result.append(res)
                         res = ''
             else:
                 res += c
-        if not res == '':
+        if res != '':
             result.append(str(res))
         if indqs:
             raise ValueError("SPLIT ODD QUOTES: %s", line)
@@ -83,7 +83,7 @@ if __name__ == "__main__":
 
     try:
         for line in td.TestData().data():
-            if not "transfer" in line:
+            if "transfer" not in line:
                 print(Splitter.split(line))
                 print()
             else:
