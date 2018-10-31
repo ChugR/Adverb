@@ -23,16 +23,15 @@ from __future__ import unicode_literals
 from __future__ import division
 from __future__ import absolute_import
 from __future__ import print_function
-import re
-from adverbl_test_data import *
+
+import traceback
+import test_data as td
 
 
 class Splitter():
-    '''
-    '''
     @staticmethod
     def split(line):
-        '''
+        """
         Split a log line into fields.
          * allow commas and spaces in quoted strings.
          * split on ', ' and on ' '.
@@ -40,7 +39,7 @@ class Splitter():
          * quoted fields must have both quotes
         :param line:
         :return:
-        '''
+        """
         result = []
         indqs = False
         pending_comma = False
@@ -64,33 +63,31 @@ class Splitter():
                         pending_comma = False
                     res += c
                 else:
-                    if not res == '':
+                    if res != '':
                         if pending_comma:
                             pending_comma = False
                         result.append(res)
                         res = ''
             else:
                 res += c
-        if not res == '':
+        if res != '':
             result.append(str(res))
         if indqs:
             raise ValueError("SPLIT ODD QUOTES: %s", line)
-        #print ("SPLIT: line: %s" % line)
-        #print ("SPLIT: flds: %s" % result)
+        # print ("SPLIT: line: %s" % line)
+        # print ("SPLIT: flds: %s" % result)
         return result
 
 
 if __name__ == "__main__":
 
-    data_source = TestData()
-    data = data_source.data()
     try:
-        for line in data:
-            if not "transfer" in line:
-                print (Splitter.split(line))
-                print ()
+        for line in td.TestData().data():
+            if "transfer" not in line:
+                print(Splitter.split(line))
+                print()
             else:
-                pass # splitter does not split transfers
+                pass  # splitter does not split transfers
         pass
     except:
         traceback.print_exc(file=sys.stdout)
