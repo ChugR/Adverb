@@ -208,7 +208,7 @@ def which_router_id_tod(routers, id, at_time):
     for routerlist in routers:
         if routerlist[0].container_name == id:
             return which_router_tod(routerlist, at_time)
-    return None
+    return (None, 0)
 
 
 
