@@ -382,7 +382,7 @@ class ParsedLogLine(object):
             if tmptgt is not None:
                 res.target = self.resdict_value(tmptgt.dict, "address", "none")
                 if caps == "":
-                    caps = self.resdict_value(tmpsrc.dict, "capabilities", "")
+                    caps = self.resdict_value(tmptgt.dict, "capabilities", "")
             else:
                 res.target = "none"
             res.channel_handle = "[%s,%s]" % (res.channel, res.handle)
@@ -863,6 +863,8 @@ def parse_log_file(fn, log_index, comn):
                 rtr.version = line[(line.find(key4) + len(key4)):].strip().split()[0]
             elif "[" in line and "]" in line:
                 try:
+                    if lineno == 130:
+                        pass
                     pl = ParsedLogLine(log_index, instance, lineno, line, comn, rtr)
                     if pl is not None:
                         rtr.lines.append(pl)
