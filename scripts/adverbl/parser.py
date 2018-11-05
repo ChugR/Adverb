@@ -840,7 +840,7 @@ def parse_log_file(fn, log_index, comn):
                 # Any key or AMQP line indicates a router in-progress
                 if any(s in line for s in keys) or ("[" in line and "]" in line):
                     assert rtr is None
-                    rtr = router.Router(log_index, instance)
+                    rtr = router.Router(fn, log_index, instance)
                     rtrs.append(rtr)
                     search_for_in_progress = False
                     rtr.restart_rec = router.RestartRecord(rtr, line, lineno + 1)
