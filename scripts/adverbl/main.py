@@ -137,7 +137,7 @@ def main_except(argv):
                 if namei != namej:
                     sys.exit('Inconsistent router versions, log file %s, instance %d:%s but instance %d:%s' %
                              (comn.log_fns[fi], i, namei, i + 1, namej))
-        name = rtrlist[0].container_name if len(rtrlist) > 0 else ("Unknown_%d" % fi)
+        name = rtrlist[0].container_name if len(rtrlist) > 0 and rtrlist[0].container_name is not None else ("Unknown_%d" % fi)
         comn.router_ids.append(name)
         comn.router_display_names.append(comn.shorteners.short_rtr_names.translate(name))
 
@@ -605,6 +605,23 @@ def main_except(argv):
     print("<hr>")
 
     # link state info
+    # merge link state and restart records into single time based list
+    cl = []
+    for rtrlist in comn.routers:
+        for rtr in rtrlist:
+            rid = rtr.container_name
+            cl.append(common.RestartRec(rtr.iname, rtr, "restart", rtr.restart_rec.datetime))
+    for plf in ls_tree:
+        if "costs" in plf.line:
+            cl.append(common.RestartRec("ls", plf, "ls", plf.datetime))
+    cl = sorted(cl, key=lambda lfl: lfl.datetime)
+
+    # create a map of lists of lists for each router
+    # the list holds the name of other routers for which the router publishes a cost
+    costs_pub = {}
+    for i in range(0, comn.n_logs):
+        costs_pub[comn.router_ids[i]] = []
+
     print("<a name=\"c_ls\"></a>")
     print("<h3>Routing link state</h3>")
     print("<h4>Link state costs</h4>")
@@ -613,8 +630,10 @@ def main_except(argv):
     for i in range(0, comn.n_logs):
         print("<th>%s</th>" % common.log_letter_of(i))
     print("</tr>")
-    for plf in ls_tree:
-        if "costs" in plf.line:
+    for c in cl:
+        if c.event == "ls":
+            # link state computed costs and router reachability
+            plf = c.router
             # Processing: Computed costs: {u'A': 1, u'C': 51L, u'B': 101L}
             print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" % (plf.router.iname, plf.lineno))))
             try:
@@ -633,21 +652,52 @@ def main_except(argv):
                     else:
                         val = "<span style=\"background-color:orange\">%s</span>" % (text.nbsp() * 2)
                     print("<td>%s</td>" % val)
+                # track costs published when there is no column to put the number
+                tgts = costs_pub[c.router.router.container_name]
+                for k, v in l_dict.iteritems():
+                    if k not in comn.router_ids:
+                        if k not in tgts:
+                            tgts.append(k)  # this cost went unreported
             except:
                 pass
             print("</tr>")
+        else:
+            # restart
+            print("<tr><td>%s</td> <td>%s</td>" % (c.datetime, ("%s restart" % (c.router.iname))))
+            for i in range(0, comn.n_logs):
+                color = "green" if i == c.router.log_index else "orange"
+                print("<td><span style=\"background-color:%s\">%s</span></td>" % (color, text.nbsp() * 2))
+            print("</tr>")
     print("</table>")
     print("<br>")
+
+    # maybe display cost declarations that were not displayed
+    costs_clean = True
+    for k, v in costs_pub.iteritems():
+        if len(v) > 0:
+            costs_clean = False
+            break
+    if not costs_clean:
+        print("<h4>Router costs declared in logs but not displayed in Link state cost table</h4>")
+        print("<table>")
+        print("<tr><th>Router</th><Peers whose logs are absent</th></tr>")
+        for k, v in costs_pub.iteritems():
+            if len(v) > 0:
+                print("<tr><td>%s</td><td>%s</td></tr>" % (k, str(v)))
+        print("</table>")
+        print("<br>")
+
     print("<a href=\"javascript:toggle_node('ls_costs')\">%s%s</a> Link state costs data<br>" %
           (text.lozenge(), text.nbsp()))
     print(" <div width=\"100%%\"; "
           "style=\"display:none; font-weight: normal; margin-bottom: 2px; margin-left: 10px\" "
           "id=\"ls_costs\">")
     print("<table>")
-    print("<tr><th>Time</th> <th>Router</th> <th>Log</th></tr>")
+    print("<tr><th>Time</th> <th>Router</th> <th>Name</th> <th>Log</th></tr>")
     for plf in ls_tree:
         if "costs" in plf.line:
             print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" % (plf.router.iname, plf.lineno))))
+            print("<td>%s</td>" % plf.router.container_name)
             print("<td>%s</td></tr>" % plf.line)
     print("</table>")
     print("</div>")
