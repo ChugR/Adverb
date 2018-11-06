@@ -27,6 +27,12 @@ import nicknamer
 
 class Common():
 
+    # arg - index transfer data or not
+    # If a log file has 100M transfers then adverbl dies.
+    # With program arg --no-data then data indexing is turned off but
+    # the output still shows connections, links, and link state costs.
+    arg_index_data = True
+
     # first letter of the connection names
     log_char_base = 'A'
 
@@ -73,6 +79,8 @@ class Common():
 
     shorteners = nicknamer.Shorteners()
 
+    # when --no-data is in effect, how many log lines were skipped?
+    data_skipped = 0
 
 def log_letter_of(idx):
     '''

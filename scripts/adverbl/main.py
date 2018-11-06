@@ -80,11 +80,16 @@ def main_except(argv):
     """
     Given a list of log file names, send the javascript web page to stdout
     """
-    if len(sys.argv) < 2:
-        sys.exit('Usage: %s log-file-name [log-file-name ...]' % sys.argv[0])
+    if len(argv) < 2:
+        sys.exit('Usage: %s [--no-data] log-file-name [log-file-name ...]' % argv[0])
 
     # Instantiate a common block
     comn = common.Common()
+
+    # optparse - look for --no-data switch
+    if argv[1] == "--no-data":
+        comn.arg_index_data = False
+        del argv[1]
 
     # process the log files and add the results to router_array
     for log_i in range(0, len(sys.argv) - 1):
@@ -239,6 +244,11 @@ def main_except(argv):
 
     # Table of contents
     print(text.web_page_toc())
+
+    # Report how much data was skipped if --no-data switch in effect
+    if not comn.arg_index_data:
+        print("--no-data switch in effect. %d log lines skipped" % comn.data_skipped)
+        print("<p><hr>")
 
     # file(s) included in this doc
     print("<a name=\"c_logfiles\"></a>")

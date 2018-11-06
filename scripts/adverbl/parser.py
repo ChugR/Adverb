@@ -865,9 +865,16 @@ def parse_log_file(fn, log_index, comn):
                 try:
                     if lineno == 130:
                         pass
-                    pl = ParsedLogLine(log_index, instance, lineno, line, comn, rtr)
-                    if pl is not None:
-                        rtr.lines.append(pl)
+                    do_this = comn.arg_index_data
+                    if not do_this:
+                        # not indexing data. maybe do this line anyway
+                        do_this = not any(s in line for s in [' @transfer', ' @disposition', ' @flow', 'EMPTY FRAME'])
+                    if do_this:
+                        pl = ParsedLogLine(log_index, instance, lineno, line, comn, rtr)
+                        if pl is not None:
+                            rtr.lines.append(pl)
+                    else:
+                        comn.data_skipped += 1
                 except ValueError as ve:
                     pass
                 except Exception as e:
