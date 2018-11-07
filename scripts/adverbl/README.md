@@ -124,7 +124,7 @@ qpid-dispatch self test.
 
 Indeed it is and good luck figuring it out. Sometimes, though, it's too much.
 The AMQP transfer data analysis is the worst offender in terms of CPU time, 
-run-time memory usage, and monstrous htlm output files.
+run-time memory usage, and monstrous html output files.
 Adverbl provides one command line switch to
 turn off the data analysis:
 
