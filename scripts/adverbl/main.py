@@ -337,8 +337,8 @@ def main_except(argv):
                       "<td>%d</td><td>%s</td><td>%d</td><td>%s</td><td>%s</td></tr>" %
                       (rid, id, id, rtr.conn_dir[id], peerconnid, peer, rtr.conn_log_lines[id], n_links,
                        rtr.conn_xfer_bytes[id], errs, stime, etime))
-            tLines += rtr.conn_log_lines[id]
-            tBytes += rtr.conn_xfer_bytes[id]
+                tLines += rtr.conn_log_lines[id]
+                tBytes += rtr.conn_xfer_bytes[id]
     print(
         "<td>Total</td><td>%d</td><td> </td><td> </td><td> </td><td> </td><td>%d</td><td>%d</td><td>%d</td><td>%d</td></tr>" %
         (tConn, tLines, tLinks, tBytes, tErrs))
@@ -626,11 +626,16 @@ def main_except(argv):
             cl.append(common.RestartRec("ls", plf, "ls", plf.datetime))
     cl = sorted(cl, key=lambda lfl: lfl.datetime)
 
-    # create a map of lists of lists for each router
+    # create a map of lists for each router
     # the list holds the name of other routers for which the router publishes a cost
     costs_pub = {}
     for i in range(0, comn.n_logs):
         costs_pub[comn.router_ids[i]] = []
+    # cur_costs is a 2D array of costs used to tell when cost calcs have stabilized
+    # Each incoming LS cost line replaces a row in this table
+    cur_costs = {}
+    for rtr in comn.router_ids:
+        cur_costs[rtr] = comn.costs_row(-1)
 
     print("<a name=\"c_ls\"></a>")
     print("<h3>Routing link state</h3>")
@@ -651,10 +656,13 @@ def main_except(argv):
                 sti = line.find("{")
                 line = line[sti:]
                 l_dict = ast.literal_eval(line)
+                costs_row = comn.costs_row(0)
                 for i in range(0, comn.n_logs):
                     if len(comn.routers[i]) > 0:
-                        if comn.routers[i][0].container_name in l_dict:
-                            val = l_dict[comn.routers[i][0].container_name]
+                        tst_name = comn.routers[i][0].container_name
+                        if tst_name in l_dict:
+                            val = l_dict[tst_name]
+                            costs_row[tst_name] = val
                         elif i == plf.router.log_index:
                             val = text.nbsp()
                         else:
@@ -668,9 +676,22 @@ def main_except(argv):
                     if k not in comn.router_ids:
                         if k not in tgts:
                             tgts.append(k)  # this cost went unreported
+                # update this router's cost view in running table
+                cur_costs[plf.router.container_name] = costs_row
             except:
                 pass
             print("</tr>")
+            # if the costs are stable across all routers then put an indicator in table
+            costs_stable = True
+            for c_rtr in comn.router_ids:
+                for r_rtr in comn.router_ids:
+                    if r_rtr != c_rtr and cur_costs[r_rtr][c_rtr] != cur_costs[c_rtr][r_rtr]:
+                        costs_stable = False
+                        break
+                if not costs_stable:
+                    break
+            if costs_stable:
+                print("<tr><td><span style=\"background-color:green\">stable</span></td></tr>")
         else:
             # restart
             print("<tr><td>%s</td> <td>%s</td>" % (c.datetime, ("%s restart" % (c.router.iname))))
@@ -678,6 +699,7 @@ def main_except(argv):
                 color = "green" if i == c.router.log_index else "orange"
                 print("<td><span style=\"background-color:%s\">%s</span></td>" % (color, text.nbsp() * 2))
             print("</tr>")
+            cur_costs[c.router.container_name] = comn.costs_row(-1)
     print("</table>")
     print("<br>")
 

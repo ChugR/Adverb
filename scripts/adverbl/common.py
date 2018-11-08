@@ -82,6 +82,22 @@ class Common():
     # when --no-data is in effect, how many log lines were skipped?
     data_skipped = 0
 
+    def router_id_index(self, id):
+        """
+        Given a router full container name, return the index in router_ids table
+        Throw value error if not found
+        :param id:
+        :return:
+        """
+        return self.router_ids.index(id)
+
+    def costs_row(self, val):
+        res = {}
+        for rtr in self.router_ids:
+            res[rtr] = val
+        return res
+
+
 def log_letter_of(idx):
     '''
     Return the letter A, B, C, ... from the index 0..n
