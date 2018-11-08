@@ -71,6 +71,9 @@ class ShortNames():
             return name
         return self.prefix + "_" + str(idx)
 
+    def prefixname(self, idx):
+        return self.prefix + "_" + str(idx)
+
     def sname_to_popup(self, sname):
         if not sname.startswith(self.prefix):
             raise ValueError("Short name '%s' does not start with prefix '%s'" % (sname, self.prefix))

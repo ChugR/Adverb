@@ -565,7 +565,7 @@ def main_except(argv):
     for i in range(0, comn.shorteners.short_link_names.len()):
         if comn.shorteners.short_link_names.len() == 0:
             break
-        sname = comn.shorteners.short_link_names.shortname(i)
+        sname = comn.shorteners.short_link_names.prefixname(i)
         print("<a name=\"%s\"></a> <h4>%s" % (sname, sname))
         print(" <span> <div width=\"100%%\"; style=\"display:block; font-weight: normal; margin-bottom: 2px\" >")
         print(comn.shorteners.short_link_names.longname(i, True))
