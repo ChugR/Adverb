@@ -831,6 +831,7 @@ def parse_log_file(fn, log_index, comn):
     key3 = "ROUTER_LS (info)"  # a log line placed in separate pool of lines
     keys = [key1, key3]
     key4 = "ROUTER (info) Version:"  # router version line
+    key5 = "ROUTER (info) Router started in " # router mode
     with open(fn, 'r') as infile:
         for line in infile:
             if search_for_in_progress:
@@ -861,6 +862,8 @@ def parse_log_file(fn, log_index, comn):
                         rtr.router_ls.append(pl)
             elif key4 in line:
                 rtr.version = line[(line.find(key4) + len(key4)):].strip().split()[0]
+            elif key5 in line:
+                rtr.mode = line[(line.find(key5) + len(key5)):].strip().split()[0].lower()
             elif "[" in line and "]" in line:
                 try:
                     if lineno == 130:

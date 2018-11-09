@@ -71,6 +71,9 @@ class Router():
         # discovered Version
         self.version = None
 
+        # discovered mode
+        self.mode = None
+
         # restart_rec - when this router was identified in log file
         self.restart_rec = None
 
@@ -179,6 +182,9 @@ class Router():
         :return: conn_id in the for A0_3
         '''
         return self.iname + "_" + str(conn_num)
+
+    def is_interior(self):
+        return self.mode == "interior"
 
 
 def which_router_tod(router_list, at_time):

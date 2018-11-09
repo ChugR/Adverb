@@ -121,7 +121,7 @@ def main_except(argv):
     ls_tree = sorted(ls_tree, key=lambda lfl: lfl.datetime)
     rr_tree = sorted(rr_tree, key=lambda lfl: lfl.datetime)
 
-    # Back-propagate a router name/version to each list's router0.
+    # Back-propagate a router name/version/mode to each list's router0.
     # Complain if container name or version changes between instances.
     # Fill in container_id and shortened display_name tables
     for fi in range(comn.n_logs):
@@ -131,6 +131,8 @@ def main_except(argv):
                 rtrlist[0].container_name = rtrlist[1].container_name
             if rtrlist[0].version is None:
                 rtrlist[0].version = rtrlist[1].version
+            if rtrlist[0].mode is None:
+                rtrlist[0].mode = rtrlist[1].mode
             for i in range(0, len(rtrlist) - 1):
                 namei = rtrlist[i].container_name
                 namej = rtrlist[i + 1].container_name
@@ -142,9 +144,16 @@ def main_except(argv):
                 if namei != namej:
                     sys.exit('Inconsistent router versions, log file %s, instance %d:%s but instance %d:%s' %
                              (comn.log_fns[fi], i, namei, i + 1, namej))
+                namei = rtrlist[i].mode
+                namej = rtrlist[i + 1].mode
+                if namei != namej:
+                    sys.exit('Inconsistent router modes, log file %s, instance %d:%s but instance %d:%s' %
+                             (comn.log_fns[fi], i, namei, i + 1, namej))
         name = rtrlist[0].container_name if len(rtrlist) > 0 and rtrlist[0].container_name is not None else ("Unknown_%d" % fi)
+        mode = rtrlist[0].mode if len(rtrlist) > 0 and rtrlist[0].mode is not None else "standalone"
         comn.router_ids.append(name)
         comn.router_display_names.append(comn.shorteners.short_rtr_names.translate(name))
+        comn.router_modes.append(mode)
 
     # aggregate connection-to-frame maps into big map
     for rtrlist in comn.routers:
@@ -253,13 +262,13 @@ def main_except(argv):
     # file(s) included in this doc
     print("<a name=\"c_logfiles\"></a>")
     print("<h3>Log files</h3>")
-    print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> "
+    print("<table><tr><th>Log</th> <th>Container name</th> <th>Version</th> <th>Mode</th>"
           "<th>Instances</th> <th>Log file path</th></tr>")
     for i in range(comn.n_logs):
         rtrlist = comn.routers[i]
         if len(rtrlist) > 0:
-            print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
-                  (common.log_letter_of(i), rtrlist[0].container_name, rtrlist[0].version,
+            print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
+                  (common.log_letter_of(i), rtrlist[0].container_name, rtrlist[0].version, rtrlist[0].mode,
                    str(len(rtrlist)), os.path.abspath(comn.log_fns[i])))
         else:
             print("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" %
@@ -631,11 +640,31 @@ def main_except(argv):
     costs_pub = {}
     for i in range(0, comn.n_logs):
         costs_pub[comn.router_ids[i]] = []
+
     # cur_costs is a 2D array of costs used to tell when cost calcs have stabilized
     # Each incoming LS cost line replaces a row in this table
+    # cur_costs tracks only interior routers
+    interior_rtrs = []
+    for rtrs in comn.routers:
+        if rtrs[0].is_interior():
+            interior_rtrs.append(rtrs[0].container_name)
+
+    PEER_COST_REBOOT = -1
+    PEER_COST_ABSENT = 0
+    def new_costs_row(val):
+        """
+        return a costs row.
+        :param val: -1 when router reboots, 0 when router log line processed
+        :return:
+        """
+        res = {}
+        for rtr in interior_rtrs:
+            res[rtr] = val
+        return res
+
     cur_costs = {}
-    for rtr in comn.router_ids:
-        cur_costs[rtr] = comn.costs_row(-1)
+    for rtr in interior_rtrs:
+        cur_costs[rtr] = new_costs_row(PEER_COST_REBOOT)
 
     print("<a name=\"c_ls\"></a>")
     print("<h3>Routing link state</h3>")
@@ -648,7 +677,7 @@ def main_except(argv):
     for c in cl:
         if c.event == "ls":
             # link state computed costs and router reachability
-            plf = c.router
+            plf = c.router # cruel overload here: router is a parsed line not a router
             # Processing: Computed costs: {u'A': 1, u'C': 51L, u'B': 101L}
             print("<tr><td>%s</td> <td>%s</td>" % (plf.datetime, ("%s#%d" % (plf.router.iname, plf.lineno))))
             try:
@@ -656,7 +685,7 @@ def main_except(argv):
                 sti = line.find("{")
                 line = line[sti:]
                 l_dict = ast.literal_eval(line)
-                costs_row = comn.costs_row(0)
+                costs_row = new_costs_row(PEER_COST_ABSENT)
                 for i in range(0, comn.n_logs):
                     if len(comn.routers[i]) > 0:
                         tst_name = comn.routers[i][0].container_name
@@ -677,15 +706,18 @@ def main_except(argv):
                         if k not in tgts:
                             tgts.append(k)  # this cost went unreported
                 # update this router's cost view in running table
-                cur_costs[plf.router.container_name] = costs_row
+                if plf.router.is_interior():
+                    cur_costs[plf.router.container_name] = costs_row
             except:
                 pass
             print("</tr>")
             # if the costs are stable across all routers then put an indicator in table
             costs_stable = True
-            for c_rtr in comn.router_ids:
-                for r_rtr in comn.router_ids:
-                    if r_rtr != c_rtr and cur_costs[r_rtr][c_rtr] != cur_costs[c_rtr][r_rtr]:
+            for c_rtr in interior_rtrs:
+                for r_rtr in interior_rtrs:
+                    if r_rtr != c_rtr \
+                            and (cur_costs[r_rtr][c_rtr] != cur_costs[c_rtr][r_rtr] \
+                            or cur_costs[c_rtr][r_rtr] <= PEER_COST_ABSENT):
                         costs_stable = False
                         break
                 if not costs_stable:
@@ -699,7 +731,8 @@ def main_except(argv):
                 color = "green" if i == c.router.log_index else "orange"
                 print("<td><span style=\"background-color:%s\">%s</span></td>" % (color, text.nbsp() * 2))
             print("</tr>")
-            cur_costs[c.router.container_name] = comn.costs_row(-1)
+            if c.router.is_interior():
+                cur_costs[c.router.container_name] = new_costs_row(PEER_COST_REBOOT)
     print("</table>")
     print("<br>")
 

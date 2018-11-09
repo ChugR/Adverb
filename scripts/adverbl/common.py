@@ -50,6 +50,9 @@ class Common():
     # router display names shortened with popups
     router_display_names = []
 
+    # router modes in plain text
+    router_modes = []
+
     # list of router-instance lists
     # [[A0, A1], [B0], [C0, C1, C2]]
     routers = []
@@ -90,12 +93,6 @@ class Common():
         :return:
         """
         return self.router_ids.index(id)
-
-    def costs_row(self, val):
-        res = {}
-        for rtr in self.router_ids:
-            res[rtr] = val
-        return res
 
 
 def log_letter_of(idx):
