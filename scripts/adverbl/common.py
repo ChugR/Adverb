@@ -25,6 +25,19 @@ import sys
 
 import nicknamer
 
+IS_PY2 = sys.version_info[0] == 2
+
+if IS_PY2:
+    def dict_iteritems(d):
+        return d.iteritems()
+    def dict_iterkeys(d):
+        return d.iterkeys()
+else:
+    def dict_iteritems(d):
+        return iter(d.items())
+    def dict_iterkeys(d):
+        return iter(d.keys())
+
 class Common():
 
     # arg - index transfer data or not

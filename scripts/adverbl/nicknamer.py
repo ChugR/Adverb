@@ -100,14 +100,14 @@ class ShortNames():
         :return: null
         '''
         if len(self.longnames) > 0:
-            print "<h3>" + self.prefix + " Name Index</h3>"
-            print "<ul>"
+            print ("<h3>" + self.prefix + " Name Index</h3>")
+            print ("<ul>")
             for i in range(0, len(self.longnames)):
                 name = self.prefix + "_" + str(i)
                 if with_link:
                     name = "<a href=\"#%s\">%s</a>" % (name, name)
                 print ("<li> " + name + " - " + cgi.escape(self.longnames[i]) + "</li>")
-            print "</ul>"
+            print ("</ul>")
 
 
 class Shorteners():
