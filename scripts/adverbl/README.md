@@ -1,8 +1,8 @@
-#  Adverbl - Render qpid-dispatch log files
+#  Scraper - Render qpid-dispatch log files
 
-Adverbl is a spinoff of the base Adverb that uses qpid-dispatch log 
-files as the data source. Adverbl is a pure, local Python processing
-engine that does not require wireshark.
+Scraper is a spinoff of https://github.com/ChugR/Adverb that uses qpid-dispatch log
+files as the data source instead of pcap trace files. Scraper is a Python processing
+engine that does not require Wireshark or any network trace capture utilities.
 
 ## Apache License, Version 2.0
 
@@ -20,10 +20,10 @@ specific language governing permissions and limitations under the License.
 
 ## Concepts
 
-Adverbl is a data scraping program. It reads qpid-dispatch router log files,
+Scraper is a data scraping program. It reads qpid-dispatch router log files,
 categorizes and sorts the data, and produces an HTML summary.
 
-From each log file Adverbl extracts:
+From each log file Scraper extracts:
  * Router version
  * Router container name
  * Router restart times. A single log file may contain data from several router
@@ -37,12 +37,12 @@ From each log file Adverbl extracts:
    * Message disposition
    * Flow and credit propagation
    
- Adverbl sorts these facts with microsecond precision using the log timestamps.
+ Scraper sorts these facts with microsecond precision using the log timestamps.
  
- Then Adverbl merges the data from any number (as long as that number is less than 27!) 
+ Then Scraper merges the data from any number (as long as that number is less than 27!)
  of independent log files into a single view.
  
- Next Adverbl performs some higher-level analysis.
+ Next Scraper performs some higher-level analysis.
  
  * Routers are identified by letter rather than by the container name: 'A', 'B', and
    so on. Log data in a file is grouped into instances and is identified by a number
@@ -78,7 +78,7 @@ From each log file Adverbl extracts:
 
 * Enable router logging
 
-The routers need to generate proper logging for Adverbl. 
+The routers need to generate proper logging for Scraper.
 The information classes are exposed by enabling log levels.
 
 | Log level      | Information               |
@@ -89,13 +89,13 @@ The information classes are exposed by enabling log levels.
 | ROUTER_LS info | Router link state reports |
 
 
-* Run your tests to populate log files used as Adverbl input.
+* Run your tests to populate log files used as Scraper input.
 
-* Run Adverbl to generate web content
+* Run Scraper to generate web content
 
-    adverbl somefile.log > somefile.html
+    bin/scraper/main.py somefile.log > somefile.html
 
-    adverbl *.log > somefile.html
+    bin/scraper/mina.py *.log > somefile.html
 
 * Profit
 
@@ -105,10 +105,10 @@ The information classes are exposed by enabling log levels.
 
 * Merging multiple qpid-dispatch log files
 
-Adverbl accepts multiple log files names in the command line and
+Scraper accepts multiple log files names in the command line and
 merges the log data according to the router log timestamps.
 
-    adverbl A.log B.log C.log > abc.html
+    bin/scraper/main.py A.log B.log C.log > abc.html
 
 Note that the qpid-dispatch host system clocks for merged log files
 must be synchronized to within a few microseconds in order for the
@@ -117,7 +117,7 @@ run on the same CPU core on a single system. Running Fedora 27 and 28
 on two hosts in a router network where the routers run _ntp_ to the same
 time provider produces perfectly acceptable results.
 
-Adverbl does a decent job merging log files created within a
+Scraper does a decent job merging log files created within a
 qpid-dispatch self test.
 
 * Wow, that's a lot of data
@@ -125,10 +125,10 @@ qpid-dispatch self test.
 Indeed it is and good luck figuring it out. Sometimes, though, it's too much.
 The AMQP transfer data analysis is the worst offender in terms of CPU time, 
 run-time memory usage, and monstrous html output files.
-Adverbl provides one command line switch to
+Scraper provides one command line switch to
 turn off the data analysis:
 
-    adverbl --no-data FILE [FILE ...]
+    bin/scraper/main.py --no-data FILE [FILE ...]
     
 In no-data mode AMQP transfer, disposition, and flow frames in the log files are
 discarded. The resulting web page still includes lots of useful information with
@@ -148,21 +148,21 @@ connection info, link name propagation, and link state analysis.
 |B0_1438|09:50:52.029760|B0 |B0_5  |<- |C0_1  |C     |0.000088 |0.001785  |(accepted settled 0.002002 S)|0.003787
 |B0_1451|09:50:52.030117|B0 |B0_7  |-> |      |peer_7|0.000357 |0.002142  |(accepted settled 0.001318 S)|0.003460
 
-Each row in this table represents the facts about when a single transfer was seen entering or exiting a router.
+Each row in this table represents the facts about when a single transfer and its corresponding settlement was seen entering or exiting a router.
 
-* Src - Router instance and file line number where the transfer was seen
-* Time - timestamp
-* Rtr - Router letter id and instance
-* ConnId - Router connection id
-* Dir - transfer direction. _<-_ indicates into the router, _->_ indicates out of the router
-* ConnId - peer's connection id. Blank if the peer is a normal client and not a router.
-* Peer - Peer's name. _peer7_ whold show the peer's container name in a popup.
-* T delta - Time since previous row
-* T elapsed - Time since the message first entered the system
-* Settlement - Settlement state and time delta since message time in column 2 for this row. The settlement
-  disposition log line is hyperlinked from the word _accepted_.
-* S elapsed - Settlement elapsed time. This is the difference between the accepted disposition log record
-  and the time when the message first entered the system.
+| Field        | Contents |
+|--------------|----------|
+|Src | Router instance and file line number where the transfer was seen|
+| Time | timestamp
+| Rtr | Router letter id and instance
+| ConnId | Router connection id
+| Dir | transfer direction. _<-_ indicates into the router, _->_ indicates out of the router
+| ConnId | peer's connection id. Blank if the peer is a normal client and not a router.
+| Peer | Peer's name. _peer7_ whold show the peer's container name in a popup.
+| T delta | Time since previous row
+| T elapsed | Time since the message first entered the system
+| Settlement | Settlement state and time delta since message time in column 2 for this row. The settlement disposition log line is hyperlinked from the word _accepted_.
+| S elapsed | Settlement elapsed time. This is the difference between the accepted disposition log record and the time when the message first entered the system.
 
 Row-by-row it is easiest to read the each line from left to right
 * A0 connecton 11 received the transfer from peer_7.
@@ -176,4 +176,4 @@ sender received the accepted disposition 0.005142 S after the sender sent the me
 The transmit times are in order from top to bottom and the settlement times are in order from bottom to top.
 
 This table will morph a little if one of the router is missing from the analysis. If log file D.log was not
-presented to Adverbl then the table would not make as much sense as when all logs are included.
+presented to Scraper then the table would not make as much sense as when all logs are included.
