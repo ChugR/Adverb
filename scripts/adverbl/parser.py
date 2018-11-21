@@ -717,7 +717,20 @@ class ParsedLogLine(object):
         try:
             self.datetime = datetime.strptime(self.line[:26], '%Y-%m-%d %H:%M:%S.%f')
         except:
-            self.datetime = datetime(1970, 1, 1)
+            # old routers flub the timestamp and don't print leading zero in uS time
+            # 2018-11-18 11:31:08.269 should be 2018-11-18 11:31:08.000269
+            td = self.line[:26]
+            parts = td.split('.')
+            us = parts[1]
+            parts_us = us.split(' ')
+            if len(parts_us[0]) < 6:
+                parts_us[0] = '0' * (6 - len(parts_us[0])) + parts_us[0]
+            parts[1] = ' '.join(parts_us)
+            td = '.'.join(parts)
+            try:
+                self.datetime = datetime.strptime(td[:26], '%Y-%m-%d %H:%M:%S.%f')
+            except:
+                self.datetime = datetime(1970, 1, 1)
 
         # extract connection number
         sti = self.line.find(self.server_trace_key)
