@@ -243,23 +243,38 @@ class DescribedType:
                     subfields.append("[]")
                     del fields[0]
                 else:
+                    # While extracting this type's fields, include nested described types
+                    # and PN_SYMBOL data enclosed in brackets. Current type ends when close
+                    # bracket seen and nest level is zero.
+                    nest = 0
                     while len(fields) > 0:
-                        if fields[0].endswith('],'):
-                            subfields.append(fields[0][:-2])
-                            subfields.append(']')
-                            del fields[0]
-                            break
-                        if fields[0].endswith(']'):
-                            subfields.append(fields[0][:-1])
-                            subfields.append(']')
-                            del fields[0]
-                            break
+                        if "=@" in fields[0] and "]" not in fields[0] and "=@:" not in fields[0]:
+                            nest += 1
+                        if nest == 0:
+                            if fields[0].endswith('],'):
+                                subfields.append(fields[0][:-2])
+                                subfields.append(']')
+                                del fields[0]
+                                break
+                            if fields[0].endswith(']'):
+                                subfields.append(fields[0][:-1])
+                                subfields.append(']')
+                                del fields[0]
+                                break
+                        elif fields[0].endswith('],') or fields[0].endswith(']'):
+                            nest -= 1
                         subfields.append(fields[0])
                         del fields[0]
 
                 subtype = DescribedType()
                 subtype.parse_dtype_line(val, ' '.join(subfields))
                 self.dict[key] = subtype
+            elif val.startswith("@PN_SYMBOL"):
+                # symbols may end in first field or some later field
+                while not val.endswith(']'):
+                    val += fields[0]
+                    del fields[0]
+                self.dict[key] = val
             elif val.startswith('{'):
                 # handle some embedded map: properties={:product=\"qpid-dispatch-router\", :version=\"1.3.0-SNAPSHOT\"}
                 # pull subtype's data out of fields. The fields list belongs to parent.
