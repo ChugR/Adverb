@@ -263,8 +263,13 @@ class DescribedType:
                                 break
                         elif fields[0].endswith('],') or fields[0].endswith(']'):
                             nest -= 1
+                        if fields[0].endswith(']]'):
+                            subfields.append(fields[0])
+                            del fields[0]
+                            break
                         subfields.append(fields[0])
                         del fields[0]
+
 
                 subtype = DescribedType()
                 subtype.parse_dtype_line(val, ' '.join(subfields))
