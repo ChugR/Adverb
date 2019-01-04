@@ -66,4 +66,4 @@ An [example](http://htmlpreview.github.io/?https://github.com/ChugR/Adverb/blob/
 
 ## TODO:
 
-* The scripts run on Fedora Linux and have some issues running on Windows.
+* The scripts run on Fedora Linux and still have some issues running on Windows.
